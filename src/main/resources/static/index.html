@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Candy Wind Agent</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --bg-0: #0a0e27;
+            --bg-1: #131836;
+            --glass: rgba(255, 255, 255, 0.04);
+            --border: rgba(255, 255, 255, 0.08);
+            --text: #e7ecff;
+            --muted: #8a93b8;
+            --primary: #6366f1;
+            --accent: #06ffa5;
+        }
+        html, body { height: 100%; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+            color: var(--text);
+            background:
+                radial-gradient(1200px 800px at 10% 10%, rgba(99,102,241,.18), transparent 60%),
+                radial-gradient(1000px 700px at 90% 90%, rgba(6,255,165,.10), transparent 60%),
+                linear-gradient(180deg, var(--bg-0), var(--bg-1));
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* ============ 侧边栏 ============ */
+        .sidebar {
+            width: 240px;
+            flex-shrink: 0;
+            background: var(--glass);
+            backdrop-filter: blur(20px);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            padding: 24px 16px;
+            transition: transform .3s ease;
+            z-index: 20;
+        }
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 0 8px 24px;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 18px;
+        }
+        .brand .logo {
+            width: 32px; height: 32px;
+            border-radius: 9px;
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-weight: 700;
+            font-size: 16px;
+            box-shadow: 0 4px 14px rgba(99,102,241,.4);
+        }
+        .brand .name {
+            font-size: 15px;
+            font-weight: 700;
+            background: linear-gradient(90deg, #fff, var(--accent));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+        .brand .name .sub {
+            display: block;
+            font-size: 10px;
+            font-weight: 400;
+            color: var(--muted);
+            -webkit-text-fill-color: var(--muted);
+            margin-top: 2px;
+            letter-spacing: 1px;
+        }
+
+        .nav-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            margin-bottom: 24px;
+        }
+        .nav-section-title {
+            font-size: 10px;
+            color: var(--muted);
+            letter-spacing: 2px;
+            padding: 0 12px 8px;
+            text-transform: uppercase;
+        }
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 12px;
+            border-radius: 10px;
+            color: var(--muted);
+            text-decoration: none;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all .15s;
+            border: 1px solid transparent;
+            background: transparent;
+            width: 100%;
+            text-align: left;
+            font-family: inherit;
+        }
+        .nav-item:hover {
+            color: var(--text);
+            background: rgba(255,255,255,0.04);
+        }
+        .nav-item.active {
+            color: #fff;
+            background: linear-gradient(135deg, rgba(99,102,241,.25), rgba(6,255,165,.08));
+            border-color: rgba(99,102,241,.4);
+            box-shadow: 0 0 0 1px rgba(99,102,241,.15) inset;
+        }
+        .nav-item .icon {
+            width: 20px;
+            text-align: center;
+            font-size: 16px;
+        }
+        .nav-item .label { flex: 1; }
+        .nav-item .badge {
+            font-size: 10px;
+            padding: 1px 6px;
+            border-radius: 4px;
+            background: rgba(6,255,165,.15);
+            color: var(--accent);
+        }
+
+        .sidebar-footer {
+            margin-top: auto;
+            padding-top: 18px;
+            border-top: 1px solid var(--border);
+        }
+        .user-box {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 10px;
+            border-radius: 10px;
+            background: rgba(255,255,255,0.03);
+            margin-bottom: 8px;
+        }
+        .user-box .avatar {
+            width: 30px; height: 30px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #ff7a00, var(--gold));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #000;
+            font-weight: 700;
+            font-size: 13px;
+        }
+        .user-box .uname { font-size: 13px; color: var(--text); }
+        .user-box .urole { font-size: 11px; color: var(--muted); }
+        .logout-btn {
+            width: 100%;
+            padding: 9px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: transparent;
+            color: var(--muted);
+            cursor: pointer;
+            font-size: 13px;
+            font-family: inherit;
+            transition: all .15s;
+        }
+        .logout-btn:hover {
+            color: #ff4d6d;
+            border-color: rgba(255,77,109,.4);
+            background: rgba(255,77,109,.05);
+        }
+
+        /* ============ 主内容区 ============ */
+        .main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+            position: relative;
+        }
+        .topbar {
+            height: 48px;
+            background: var(--glass);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            font-size: 13px;
+            color: var(--muted);
+            gap: 12px;
+        }
+        .topbar .breadcrumb {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .topbar .breadcrumb .sep { opacity: 0.4; }
+        .topbar .current {
+            color: var(--text);
+            font-weight: 600;
+        }
+        .topbar .toggle-sidebar {
+            display: none;
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text);
+            border-radius: 8px;
+            padding: 4px 8px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .content {
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+            background:
+                radial-gradient(800px 500px at 50% -10%, rgba(99,102,241,.04), transparent 60%);
+        }
+        .content iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            display: block;
+        }
+
+        /* 移动端响应 */
+        @media (max-width: 768px) {
+            .sidebar {
+                position: fixed;
+                left: 0; top: 0; bottom: 0;
+                transform: translateX(-100%);
+                width: 240px;
+            }
+            .sidebar.open { transform: translateX(0); }
+            .topbar .toggle-sidebar { display: inline-block; }
+        }
+    </style>
+</head>
+<body>
+    <aside class="sidebar" id="sidebar">
+        <div class="brand">
+            <div class="logo">C</div>
+            <div class="name">
+                Candy Wind
+                <span class="sub">AGENT</span>
+            </div>
+        </div>
+
+        <div class="nav-group">
+            <div class="nav-section-title">功能</div>
+            <button type="button" class="nav-item active" data-target="chat">
+                <span class="icon">💬</span>
+                <span class="label">AI 对话</span>
+            </button>
+            <button type="button" class="nav-item" data-target="boxoffice">
+                <span class="icon">🎬</span>
+                <span class="label">票房数据</span>
+                <span class="badge">实时</span>
+            </button>
+        </div>
+
+        <div class="sidebar-footer">
+            <div class="user-box">
+                <div class="avatar" id="userAvatar">A</div>
+                <div>
+                    <div class="uname" id="userName">admin</div>
+                    <div class="urole">已登录</div>
+                </div>
+            </div>
+            <button type="button" class="logout-btn" id="logoutBtn">退出登录</button>
+        </div>
+    </aside>
+
+    <div class="main">
+        <div class="topbar">
+            <button class="toggle-sidebar" id="toggleSidebar">☰</button>
+            <div class="breadcrumb">
+                <span>Candy Wind Agent</span>
+                <span class="sep">/</span>
+                <span class="current" id="currentPage">AI 对话</span>
+            </div>
+        </div>
+        <div class="content">
+            <iframe id="frame" src="/chat.html"></iframe>
+        </div>
+    </div>
+
+<script>
+const navItems = document.querySelectorAll('.nav-item');
+const frame = document.getElementById('frame');
+const currentPage = document.getElementById('currentPage');
+const toggleBtn = document.getElementById('toggleSidebar');
+const sidebar = document.getElementById('sidebar');
+const logoutBtn = document.getElementById('logoutBtn');
+
+const PAGES = {
+    chat: { title: 'AI 对话', url: '/chat.html' },
+    boxoffice: { title: '票房数据', url: '/boxoffice.html' }
+};
+
+function switchTo(target) {
+    const page = PAGES[target];
+    if (!page) return;
+    navItems.forEach(n => n.classList.toggle('active', n.dataset.target === target));
+    currentPage.textContent = page.title;
+    frame.src = page.url;
+    // 关闭移动端侧边栏
+    sidebar.classList.remove('open');
+    // 持久化当前选择
+    try { localStorage.setItem('app_active_nav', target); } catch(e) {}
+}
+
+navItems.forEach(item => {
+    item.addEventListener('click', () => switchTo(item.dataset.target));
+});
+
+toggleBtn.addEventListener('click', () => {
+    sidebar.classList.toggle('open');
+});
+
+// 退出登录
+logoutBtn.addEventListener('click', () => {
+    if (!confirm('确认退出登录?')) return;
+    fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('auth_token') || '') }
+    }).finally(() => {
+        localStorage.removeItem('auth_token');
+        location.href = '/login.html';
+    });
+});
+
+// 初始化:从 localStorage 读取上次选择
+const saved = localStorage.getItem('app_active_nav');
+if (saved && PAGES[saved]) {
+    switchTo(saved);
+} else {
+    switchTo('chat');
+}
+
+// 获取用户信息(基于服务端会话 Cookie 校验)
+async function loadUser() {
+    try {
+        const r = await fetch('/api/auth/check');
+        if (!r.ok) { location.href = '/login.html'; return; }
+        const data = await r.json();
+        const name = data.username || data.user || 'admin';
+        document.getElementById('userName').textContent = name;
+        document.getElementById('userAvatar').textContent = name.charAt(0).toUpperCase();
+    } catch (e) {
+        // 静默失败 - 不阻塞页面
+    }
+}
+loadUser();
+</script>
+</body>
+</html>

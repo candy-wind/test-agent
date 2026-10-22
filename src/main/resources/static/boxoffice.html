@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Candy Wind Agent · 票房</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --bg-0: #0a0e27;
+            --bg-1: #131836;
+            --glass: rgba(255, 255, 255, 0.04);
+            --border: rgba(255, 255, 255, 0.08);
+            --text: #e7ecff;
+            --muted: #8a93b8;
+            --primary: #6366f1;
+            --accent: #06ffa5;
+            --gold: #ffd666;
+            --red: #ff4d6d;
+        }
+        html, body { height: 100%; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+            color: var(--text);
+            background:
+                radial-gradient(1200px 800px at 10% 10%, rgba(99,102,241,.18), transparent 60%),
+                radial-gradient(1000px 700px at 90% 90%, rgba(6,255,165,.10), transparent 60%),
+                linear-gradient(180deg, var(--bg-0), var(--bg-1));
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* 顶栏 */
+        header {
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            padding: 16px 28px;
+            background: var(--glass);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        header h1 {
+            font-size: 18px;
+            font-weight: 700;
+            background: linear-gradient(90deg, #fff, var(--accent));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+        header .back {
+            display: none;
+        }
+
+        /* 大盘统计 */
+        .stats {
+            display: flex;
+            gap: 14px;
+            padding: 24px 28px;
+            flex-wrap: wrap;
+        }
+        .stat-card {
+            flex: 1;
+            min-width: 180px;
+            padding: 18px 20px;
+            border-radius: 16px;
+            background: var(--glass);
+            border: 1px solid var(--border);
+            backdrop-filter: blur(10px);
+            position: relative;
+            overflow: hidden;
+        }
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, transparent, rgba(99,102,241,.06));
+            pointer-events: none;
+        }
+        .stat-card .label { color: var(--muted); font-size: 12px; margin-bottom: 8px; letter-spacing: 1px; }
+        .stat-card .value { font-size: 26px; font-weight: 700; line-height: 1.2; }
+        .stat-card .value.gold { color: var(--gold); }
+        .stat-card .value.accent { color: var(--accent); }
+        .stat-card .value.primary { color: var(--primary); }
+        .stat-card .unit { font-size: 13px; color: var(--muted); margin-left: 4px; }
+        .stat-card .updated { font-size: 11px; color: var(--muted); margin-top: 6px; }
+
+        /* 搜索框 */
+        .search-wrap {
+            padding: 0 28px 16px;
+        }
+        .search-box {
+            display: flex;
+            gap: 10px;
+            padding: 6px 6px 6px 18px;
+            border-radius: 999px;
+            background: var(--glass);
+            border: 1px solid var(--border);
+            backdrop-filter: blur(10px);
+            transition: border-color .2s;
+        }
+        .search-box:focus-within { border-color: var(--primary); }
+        .search-box input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            outline: none;
+            color: var(--text);
+            font-size: 14px;
+            padding: 8px 0;
+        }
+        .search-box input::placeholder { color: var(--muted); }
+        .search-box button {
+            padding: 8px 18px;
+            border: none;
+            border-radius: 999px;
+            background: linear-gradient(135deg, var(--primary), #8b5cf6);
+            color: #fff;
+            font-size: 13px;
+            cursor: pointer;
+            transition: transform .15s;
+        }
+        .search-box button:hover { transform: translateY(-1px); }
+        .search-box button:disabled { opacity: .5; cursor: not-allowed; }
+
+        /* 表格区 */
+        main { padding: 0 28px 28px; flex: 1; }
+        .table-wrap {
+            background: var(--glass);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            backdrop-filter: blur(10px);
+            overflow: hidden;
+        }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        thead th {
+            text-align: left;
+            padding: 12px 14px;
+            color: var(--muted);
+            font-weight: 500;
+            font-size: 12px;
+            letter-spacing: .5px;
+            background: rgba(255,255,255,0.02);
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+        }
+        tbody tr {
+            border-bottom: 1px solid var(--border);
+            transition: background .15s;
+        }
+        tbody tr:hover { background: rgba(255,255,255,0.03); }
+        tbody tr:last-child { border-bottom: none; }
+        td { padding: 12px 14px; }
+        .rank {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 24px; height: 24px;
+            border-radius: 6px;
+            font-weight: 700;
+            font-size: 12px;
+            background: rgba(255,255,255,0.05);
+            color: var(--muted);
+        }
+        .rank.top1 { background: linear-gradient(135deg, #ffd666, #ff7a00); color: #000; }
+        .rank.top2 { background: linear-gradient(135deg, #d9d9d9, #888); color: #000; }
+        .rank.top3 { background: linear-gradient(135deg, #ffb084, #c47800); color: #000; }
+        .name-cell { font-weight: 600; color: #fff; }
+        .name-cell .tag {
+            display: inline-block;
+            padding: 1px 6px;
+            margin-left: 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 400;
+            background: rgba(6,255,165,.15);
+            color: var(--accent);
+            border: 1px solid rgba(6,255,165,.3);
+        }
+        .name-cell .tag.off { background: rgba(255,77,109,.12); color: var(--red); border-color: rgba(255,77,109,.3); }
+        .num-box { color: var(--gold); font-weight: 600; }
+        .num-box.dim { color: var(--muted); font-weight: 400; }
+        .pct-bar {
+            position: relative;
+            min-width: 80px;
+        }
+        .pct-bar .pct-text { font-size: 12px; color: var(--text); }
+        .pct-bar .bar {
+            margin-top: 4px;
+            height: 4px;
+            border-radius: 2px;
+            background: rgba(255,255,255,0.05);
+            overflow: hidden;
+        }
+        .pct-bar .bar > i {
+            display: block;
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), var(--accent));
+            border-radius: 2px;
+            transition: width .4s ease;
+        }
+        .empty-row {
+            text-align: center;
+            color: var(--muted);
+            padding: 60px 20px;
+            font-size: 14px;
+        }
+        .loader {
+            display: inline-block;
+            width: 14px; height: 14px;
+            border: 2px solid rgba(255,255,255,0.2);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin .8s linear infinite;
+            margin-right: 6px;
+            vertical-align: -2px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(20,25,55,0.95);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 10px 18px;
+            border-radius: 10px;
+            font-size: 13px;
+            backdrop-filter: blur(10px);
+            opacity: 0;
+            transition: opacity .3s;
+            z-index: 100;
+            pointer-events: none;
+        }
+        .toast.show { opacity: 1; }
+
+        @media (max-width: 768px) {
+            .stats { padding: 16px; gap: 10px; }
+            .stat-card { min-width: 140px; padding: 12px; }
+            .stat-card .value { font-size: 20px; }
+            .search-wrap, main { padding-left: 14px; padding-right: 14px; }
+            table { font-size: 12px; }
+            td, thead th { padding: 8px; }
+            .hide-sm { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Candy Wind Agent · 实时票房</h1>
+    </header>
+
+    <section class="stats">
+        <div class="stat-card">
+            <div class="label">今日大盘</div>
+            <div>
+                <span class="value gold" id="totalBox">--</span>
+                <span class="unit" id="totalBoxUnit">万</span>
+            </div>
+            <div class="updated" id="updateInfo">--</div>
+        </div>
+        <div class="stat-card">
+            <div class="label">在映影片</div>
+            <div><span class="value accent" id="movieCount">--</span><span class="unit">部</span></div>
+            <div class="updated">实时榜单 Top-N</div>
+        </div>
+        <div class="stat-card">
+            <div class="label">数据来源</div>
+            <div><span class="value primary" style="font-size:18px;" id="sourceName">--</span></div>
+            <div class="updated" id="sourceUrl" style="word-break:break-all;">--</div>
+        </div>
+    </section>
+
+    <div class="search-wrap">
+        <div class="search-box">
+            <input id="kw" type="text" placeholder="搜索电影名(全库),命中在映影片带实时票房" />
+            <button id="searchBtn">搜索</button>
+        </div>
+    </div>
+
+    <main>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width:50px;">#</th>
+                        <th>影片</th>
+                        <th>当日票房(万)</th>
+                        <th class="hide-sm">票房占比</th>
+                        <th class="hide-sm">累计票房</th>
+                        <th class="hide-sm">上映天数</th>
+                        <th class="hide-sm">排片占比</th>
+                        <th class="hide-sm">上座率</th>
+                        <th class="hide-sm">场均人次</th>
+                        <th class="hide-sm">平均票价</th>
+                    </tr>
+                </thead>
+                <tbody id="tbody">
+                    <tr><td colspan="10" class="empty-row"><span class="loader"></span>加载中...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </main>
+
+    <div class="toast" id="toast"></div>
+
+<script>
+const TOKEN_KEY = 'auth_token';
+const tbody = document.getElementById('tbody');
+const kwInput = document.getElementById('kw');
+const searchBtn = document.getElementById('searchBtn');
+const toast = document.getElementById('toast');
+
+function getToken() { return localStorage.getItem(TOKEN_KEY) || ''; }
+function authHeaders() {
+    const h = { 'Content-Type': 'application/json' };
+    const t = getToken();
+    if (t) h['Authorization'] = 'Bearer ' + t;
+    return h;
+}
+function showToast(msg) {
+    toast.textContent = msg;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2000);
+}
+function escapeHtml(s) {
+    if (s == null) return '';
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function pctToNum(s) {
+    // 解析 "23.5%" -> 23.5
+    if (!s || s === '--') return 0;
+    return parseFloat(String(s).replace('%','')) || 0;
+}
+
+function renderRows(movies) {
+    if (!movies || movies.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="10" class="empty-row">没有匹配的影片</td></tr>';
+        return;
+    }
+    tbody.innerHTML = movies.map((m, i) => {
+        const rank = i + 1;
+        const rankCls = rank === 1 ? 'top1' : rank === 2 ? 'top2' : rank === 3 ? 'top3' : '';
+        const inChart = m.inChart;
+        const tagHtml = inChart ? '<span class="tag">在映</span>' : '<span class="tag off">未在映</span>';
+        const boxInfoHtml = inChart
+            ? `<span class="num-box">${escapeHtml(m.boxInfo)}</span>`
+            : `<span class="num-box dim">--</span>`;
+        const rate = pctToNum(m.boxRate);
+        const barWidth = Math.min(100, Math.max(2, rate));
+        const boxRateHtml = inChart
+            ? `<div class="pct-bar"><span class="pct-text">${escapeHtml(m.boxRate)}</span><div class="bar"><i style="width:${barWidth}%"></i></div></div>`
+            : '<span class="num-box dim">--</span>';
+        return `<tr>
+            <td><span class="rank ${rankCls}">${rank}</span></td>
+            <td class="name-cell">${escapeHtml(m.movieName)}${tagHtml}</td>
+            <td>${boxInfoHtml}</td>
+            <td class="hide-sm">${boxRateHtml}</td>
+            <td class="hide-sm"><span class="num-box ${inChart?'':'dim'}">${escapeHtml(m.sumBoxInfo)}</span></td>
+            <td class="hide-sm">${escapeHtml(m.releaseInfo)}</td>
+            <td class="hide-sm">${inChart ? escapeHtml(m.showRate) : '--'}</td>
+            <td class="hide-sm">${inChart ? escapeHtml(m.avgSeatView) : '--'}</td>
+            <td class="hide-sm">${inChart ? escapeHtml(m.avgShowView) : '--'}</td>
+            <td class="hide-sm">${inChart ? escapeHtml(m.avgViewBox) : '--'}</td>
+        </tr>`;
+    }).join('');
+}
+
+function renderStats(data) {
+    document.getElementById('totalBox').textContent = data.totalBox || '--';
+    document.getElementById('totalBoxUnit').textContent = data.totalBoxUnit || '万';
+    document.getElementById('updateInfo').textContent = data.updateInfo || '--';
+    document.getElementById('movieCount').textContent = (data.list || []).length;
+    document.getElementById('sourceName').textContent = data.sourceName || '--';
+    document.getElementById('sourceUrl').textContent = data.sourceUrl || '--';
+}
+
+async function loadList() {
+    tbody.innerHTML = '<tr><td colspan="10" class="empty-row"><span class="loader"></span>加载中...</td></tr>';
+    try {
+        const r = await fetch('/api/boxoffice/list', { headers: authHeaders() });
+        if (r.status === 401) {
+            location.href = '/login.html';
+            return;
+        }
+        const data = await r.json();
+        renderStats(data);
+        renderRows(data.list || []);
+    } catch (e) {
+        tbody.innerHTML = '<tr><td colspan="10" class="empty-row">加载失败: ' + escapeHtml(e.message) + '</td></tr>';
+    }
+}
+
+async function doSearch() {
+    const kw = kwInput.value.trim();
+    if (!kw) { loadList(); return; }
+    searchBtn.disabled = true;
+    searchBtn.textContent = '搜索中...';
+    tbody.innerHTML = '<tr><td colspan="10" class="empty-row"><span class="loader"></span>搜索中...</td></tr>';
+    try {
+        const r = await fetch('/api/boxoffice/search?keyword=' + encodeURIComponent(kw), { headers: authHeaders() });
+        if (r.status === 401) { location.href = '/login.html'; return; }
+        const data = await r.json();
+        renderRows(data.list || []);
+        showToast(`命中 ${(data.list||[]).length} 部影片`);
+    } catch (e) {
+        tbody.innerHTML = '<tr><td colspan="10" class="empty-row">搜索失败: ' + escapeHtml(e.message) + '</td></tr>';
+    } finally {
+        searchBtn.disabled = false;
+        searchBtn.textContent = '搜索';
+    }
+}
+
+searchBtn.addEventListener('click', doSearch);
+kwInput.addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
+
+// 清空搜索时回榜单
+kwInput.addEventListener('input', () => {
+    if (kwInput.value === '') loadList();
+});
+
+// 初始化加载
+loadList();
+// 30s 自动刷新榜单(仅在非搜索态)
+setInterval(() => {
+    if (kwInput.value === '') loadList();
+}, 30000);
+</script>
+</body>
+</html>

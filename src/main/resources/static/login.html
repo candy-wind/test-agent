@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Candy Wind Agent · 登录</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --bg-deep: #050816;
+            --bg-mid: #0a0f2c;
+            --text: #ffffff;
+            --muted: rgba(255,255,255,0.6);
+            --border: rgba(255,255,255,0.12);
+            --accent: #00d4ff;
+            --accent-2: #7c3aed;
+            --accent-3: #ff2e9a;
+            --danger: #ff5470;
+            --panel: rgba(255,255,255,0.04);
+        }
+        html, body { height: 100%; width: 100%; overflow: hidden; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+            background: radial-gradient(ellipse at top left, var(--bg-mid) 0%, var(--bg-deep) 60%);
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            min-height: 100vh;
+        }
+
+        /* ============ 背景：流动渐变光斑 ============ */
+        .bg-orbs {
+            position: fixed;
+            inset: 0;
+            overflow: hidden;
+            pointer-events: none;
+            z-index: 0;
+        }
+        .orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: 0.55;
+            mix-blend-mode: screen;
+            animation: floatOrb 18s ease-in-out infinite;
+        }
+        .orb-1 {
+            width: 480px; height: 480px;
+            background: radial-gradient(circle, #00d4ff 0%, transparent 70%);
+            top: -120px; left: -120px;
+            animation-delay: 0s;
+        }
+        .orb-2 {
+            width: 560px; height: 560px;
+            background: radial-gradient(circle, #7c3aed 0%, transparent 70%);
+            bottom: -180px; right: -160px;
+            animation-delay: -6s;
+        }
+        .orb-3 {
+            width: 380px; height: 380px;
+            background: radial-gradient(circle, #ff2e9a 0%, transparent 70%);
+            top: 40%; left: 40%;
+            animation-delay: -12s;
+        }
+        @keyframes floatOrb {
+            0%, 100% { transform: translate(0,0) scale(1); }
+            33%      { transform: translate(60px, -40px) scale(1.08); }
+            66%      { transform: translate(-40px, 50px) scale(0.95); }
+        }
+
+        /* ============ 背景：网格 ============ */
+        .bg-grid {
+            position: fixed;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(0,212,255,0.06) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0,212,255,0.06) 1px, transparent 1px);
+            background-size: 56px 56px;
+            mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
+            -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
+            z-index: 0;
+            animation: gridShift 30s linear infinite;
+        }
+        @keyframes gridShift {
+            from { background-position: 0 0, 0 0; }
+            to   { background-position: 56px 56px, 56px 56px; }
+        }
+
+        /* ============ 背景：粒子点 ============ */
+        .bg-stars {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            pointer-events: none;
+        }
+        .bg-stars span {
+            position: absolute;
+            width: 2px; height: 2px;
+            background: #fff;
+            border-radius: 50%;
+            opacity: 0;
+            animation: twinkle 4s ease-in-out infinite;
+        }
+        @keyframes twinkle {
+            0%, 100% { opacity: 0; transform: scale(0.5); }
+            50%      { opacity: 1; transform: scale(1.3); box-shadow: 0 0 6px #fff; }
+        }
+
+        /* ============ 主舞台 ============ */
+        .stage {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            align-items: center;
+            gap: 40px;
+            padding: 20px;
+            max-width: 1080px;
+            width: 100%;
+        }
+
+        /* 左侧：品牌视觉 */
+        .brand {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            color: #fff;
+        }
+        .brand .logo {
+            width: 96px; height: 96px;
+            position: relative;
+            margin-bottom: 8px;
+        }
+        .brand .logo svg { width: 100%; height: 100%; filter: drop-shadow(0 0 20px rgba(0,212,255,0.6)); }
+        .brand .ring {
+            position: absolute;
+            inset: 0;
+            border-radius: 50%;
+            border: 1px solid rgba(0,212,255,0.4);
+            animation: spin 8s linear infinite;
+        }
+        .brand .ring::before {
+            content: '';
+            position: absolute;
+            top: -3px; left: 50%;
+            width: 6px; height: 6px;
+            background: var(--accent);
+            border-radius: 50%;
+            box-shadow: 0 0 12px var(--accent);
+            transform: translateX(-50%);
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .brand h1 {
+            font-size: 38px;
+            font-weight: 700;
+            line-height: 1.15;
+            background: linear-gradient(90deg, #00d4ff, #7c3aed, #ff2e9a);
+            background-size: 200% 100%;
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: gradMove 8s linear infinite;
+        }
+        @keyframes gradMove { to { background-position: 200% 0; } }
+        .brand .tagline {
+            font-size: 15px;
+            color: var(--muted);
+            line-height: 1.6;
+            max-width: 380px;
+        }
+        .brand .features {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 8px;
+        }
+        .brand .feature {
+            padding: 6px 14px;
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            font-size: 12px;
+            color: var(--muted);
+            backdrop-filter: blur(10px);
+            background: var(--panel);
+            transition: all .25s;
+        }
+        .brand .feature:hover {
+            color: var(--accent);
+            border-color: var(--accent);
+            box-shadow: 0 0 12px rgba(0,212,255,0.3);
+        }
+
+        /* 右侧：登录卡 */
+        .card {
+            width: 380px;
+            padding: 36px 32px 32px;
+            background: var(--panel);
+            backdrop-filter: blur(20px) saturate(140%);
+            -webkit-backdrop-filter: blur(20px) saturate(140%);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            box-shadow:
+                0 20px 60px rgba(0,0,0,0.4),
+                inset 0 1px 0 rgba(255,255,255,0.08);
+            position: relative;
+            overflow: hidden;
+        }
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: -50%;
+            width: 200%; height: 1px;
+            background: linear-gradient(90deg, transparent, var(--accent), transparent);
+            animation: scanLine 4s linear infinite;
+        }
+        @keyframes scanLine {
+            0%   { transform: translateX(-100%); opacity: 0; }
+            10%  { opacity: 1; }
+            90%  { opacity: 1; }
+            100% { transform: translateX(100%); opacity: 0; }
+        }
+        .card h2 {
+            font-size: 22px;
+            font-weight: 600;
+            text-align: center;
+            margin-bottom: 4px;
+            background: linear-gradient(90deg, #fff, #b9d8ff);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .card .subtitle {
+            text-align: center;
+            font-size: 13px;
+            color: var(--muted);
+            margin-bottom: 28px;
+        }
+        .field {
+            position: relative;
+            margin-bottom: 18px;
+        }
+        .field input {
+            width: 100%;
+            padding: 14px 14px 14px 42px;
+            font-size: 14px;
+            background: rgba(0,0,0,0.25);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: #fff;
+            outline: none;
+            transition: all .2s;
+        }
+        .field input::placeholder { color: rgba(255,255,255,0.35); }
+        .field input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(0,212,255,0.15);
+            background: rgba(0,0,0,0.4);
+        }
+        .field .icon {
+            position: absolute;
+            left: 14px; top: 50%;
+            transform: translateY(-50%);
+            color: var(--muted);
+            width: 18px; height: 18px;
+            pointer-events: none;
+        }
+        .field .icon svg { width: 100%; height: 100%; }
+
+        .submit-btn {
+            width: 100%;
+            margin-top: 8px;
+            padding: 13px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #fff;
+            background: linear-gradient(90deg, #00d4ff, #7c3aed);
+            background-size: 200% 100%;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all .3s;
+            position: relative;
+            overflow: hidden;
+        }
+        .submit-btn:hover:not(:disabled) {
+            background-position: 100% 0;
+            box-shadow: 0 8px 24px rgba(0,212,255,0.35);
+            transform: translateY(-1px);
+        }
+        .submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .submit-btn .spinner {
+            display: inline-block;
+            width: 14px; height: 14px;
+            border: 2px solid rgba(255,255,255,0.4);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spinBtn 0.7s linear infinite;
+            vertical-align: middle;
+            margin-right: 6px;
+        }
+        @keyframes spinBtn { to { transform: rotate(360deg); } }
+
+        .error {
+            margin-top: 14px;
+            min-height: 18px;
+            color: var(--danger);
+            font-size: 13px;
+            text-align: center;
+            opacity: 0;
+            transition: opacity .2s;
+        }
+        .error.show { opacity: 1; }
+
+        .hint {
+            margin-top: 20px;
+            padding-top: 16px;
+            border-top: 1px dashed var(--border);
+            font-size: 12px;
+            color: var(--muted);
+            text-align: center;
+            line-height: 1.7;
+        }
+        .hint code {
+            padding: 1px 6px;
+            background: rgba(0,212,255,0.1);
+            border: 1px solid rgba(0,212,255,0.25);
+            border-radius: 4px;
+            color: var(--accent);
+            font-family: "SFMono-Regular", Consolas, monospace;
+        }
+
+        /* ============ 响应式 ============ */
+        @media (max-width: 760px) {
+            .stage { flex-direction: column; gap: 28px; }
+            .brand { align-items: center; text-align: center; }
+            .brand h1 { font-size: 30px; }
+            .card { width: 100%; max-width: 380px; }
+        }
+    </style>
+</head>
+<body>
+    <!-- 背景层 -->
+    <div class="bg-orbs">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+        <div class="orb orb-3"></div>
+    </div>
+    <div class="bg-grid"></div>
+    <div class="bg-stars" id="stars"></div>
+
+    <!-- 主舞台 -->
+    <div class="stage">
+        <!-- 左：品牌视觉 -->
+        <div class="brand">
+            <div class="logo">
+                <div class="ring"></div>
+                <svg viewBox="0 0 96 96" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="lg1" x1="0" y1="0" x2="1" y2="1">
+                            <stop offset="0%" stop-color="#00d4ff"/>
+                            <stop offset="50%" stop-color="#7c3aed"/>
+                            <stop offset="100%" stop-color="#ff2e9a"/>
+                        </linearGradient>
+                    </defs>
+                    <circle cx="48" cy="48" r="32" fill="none" stroke="url(#lg1)" stroke-width="2.5"/>
+                    <circle cx="48" cy="48" r="18" fill="none" stroke="url(#lg1)" stroke-width="2" opacity="0.7"/>
+                    <circle cx="48" cy="48" r="6"  fill="url(#lg1)"/>
+                    <line x1="48" y1="8"  x2="48" y2="20" stroke="url(#lg1)" stroke-width="2" stroke-linecap="round"/>
+                    <line x1="48" y1="76" x2="48" y2="88" stroke="url(#lg1)" stroke-width="2" stroke-linecap="round"/>
+                    <line x1="8"  y1="48" x2="20" y2="48" stroke="url(#lg1)" stroke-width="2" stroke-linecap="round"/>
+                    <line x1="76" y1="48" x2="88" y2="48" stroke="url(#lg1)" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            </div>
+            <h1>Candy Wind Agent</h1>
+            <p class="tagline">多模型智能体平台 · 支持 DeepSeek / Qwen 双引擎、流式回复、联网搜索与图像理解，一个属于你的 AI 工作站。</p>
+            <div class="features">
+                <span class="feature">⚡ 流式对话</span>
+                <span class="feature">🌐 联网搜索</span>
+                <span class="feature">🖼️ 图像理解</span>
+                <span class="feature">🧠 推理模型</span>
+                <span class="feature">🔐 安全登录</span>
+            </div>
+        </div>
+
+        <!-- 右：登录卡 -->
+        <div class="card">
+            <h2>欢迎回来</h2>
+            <div class="subtitle">请登录以继续</div>
+            <form id="loginForm" autocomplete="off">
+                <div class="field">
+                    <span class="icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="8" r="4"/>
+                            <path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8" stroke-linecap="round"/>
+                        </svg>
+                    </span>
+                    <input type="text" id="username" name="username" placeholder="用户名" required autocomplete="username" />
+                </div>
+                <div class="field">
+                    <span class="icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="4" y="10" width="16" height="10" rx="2"/>
+                            <path d="M8 10V7a4 4 0 0 1 8 0v3" stroke-linecap="round"/>
+                        </svg>
+                    </span>
+                    <input type="password" id="password" name="password" placeholder="密码" required autocomplete="current-password" />
+                </div>
+                <button type="submit" class="submit-btn" id="submitBtn">登录</button>
+                <div class="error" id="error"></div>
+            </form>
+            <div class="hint">
+                默认账号 <code>admin</code> / 密码 <code>admin123</code><br/>
+                可在 <code>application.yml</code> 中修改
+            </div>
+        </div>
+    </div>
+
+<script>
+    // ========== 背景星空粒子 ==========
+    (function () {
+        const stars = document.getElementById('stars');
+        const n = 80;
+        for (let i = 0; i < n; i++) {
+            const s = document.createElement('span');
+            s.style.left = Math.random() * 100 + '%';
+            s.style.top = Math.random() * 100 + '%';
+            s.style.animationDelay = (Math.random() * 4) + 's';
+            s.style.animationDuration = (3 + Math.random() * 4) + 's';
+            stars.appendChild(s);
+        }
+    })();
+
+    // ========== 已登录则自动跳转主页 ==========
+    // 访问 /login.html 时，若仍持有有效 cookie，直接跳到主页，避免重复登录
+    (async function checkSession() {
+        try {
+            const resp = await fetch('/api/auth/check', { method: 'GET' });
+            if (resp.ok) {
+                window.location.replace('/');
+                return;
+            }
+        } catch (_) { /* 未登录，留在登录页 */ }
+    })();
+
+    // ========== 登录逻辑 ==========
+    const form = document.getElementById('loginForm');
+    const errorEl = document.getElementById('error');
+    const submitBtn = document.getElementById('submitBtn');
+
+    function showError(msg) {
+        errorEl.textContent = msg;
+        errorEl.classList.add('show');
+    }
+    function hideError() {
+        errorEl.classList.remove('show');
+    }
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        hideError();
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner"></span>登录中...';
+
+        const formData = new FormData();
+        formData.append('username', document.getElementById('username').value);
+        formData.append('password', document.getElementById('password').value);
+
+        try {
+            const resp = await fetch('/api/auth/login', { method: 'POST', body: formData });
+            let data;
+            try { data = await resp.json(); }
+            catch (_) { data = { success: false, message: '响应解析失败' }; }
+
+            if (resp.ok && data.success) {
+                submitBtn.innerHTML = '登录成功，跳转中...';
+                window.location.href = '/';
+            } else {
+                showError(data.message || '登录失败');
+                submitBtn.innerHTML = '登录';
+                submitBtn.disabled = false;
+            }
+        } catch (err) {
+            showError('网络异常：' + err.message);
+            submitBtn.innerHTML = '登录';
+            submitBtn.disabled = false;
+        }
+    });
+</script>
+</body>
+</html>

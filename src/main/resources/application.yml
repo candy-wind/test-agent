@@ -1,0 +1,70 @@
+server:
+  port: 8080
+  servlet:
+    encoding:
+      charset: UTF-8
+      force: true
+
+spring:
+  application:
+    name: test-agent
+  web:
+    resources:
+      cache:
+        cachecontrol:
+          no-cache: true   # 静态页面每次使用前都向服务端校验，避免旧页面被浏览器缓存导致跳转异常
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 20MB
+  mvc:
+    log-request-details: true   # 打印请求参数明细
+  http:
+    log-request-details: true
+
+logging:
+  level:
+    root: INFO
+    vip.mate.agent: DEBUG
+    org.springframework.web: DEBUG
+  file:
+    name: logs/app.log
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %highlight(%-5level) [%thread] %cyan(%logger{36}) - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n"
+
+agent:
+  default-provider: deepseek
+  providers:
+    deepseek:
+      base-url: https://api.deepseek.com
+      api-key: 你的apikey
+      chat-model: deepseek-chat
+      reasoner-model: deepseek-reasoner
+    qwen:
+      base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
+      api-key: sk-your-qwen-api-key
+      chat-model: qwen-plus
+      vision-model: qwen-vl-max
+      reasoner-model: qwen-max
+  search:
+    enabled: true
+    max-results: 5
+
+upload:
+  dir: ./uploads
+
+# 票房数据源
+#  apizero: 公开源(极数本源 movie-box,数据来源猫眼专业版,匿名可调,免登录)
+#  maoyan : 猫眼专业版官方接口(需 signKey/mygsig 签名,可能被风控拦截,可配置登录 Cookie)
+boxoffice:
+  provider: apizero
+  refresh-interval-ms: 60000   # 定时刷新数据源缓存间隔(毫秒),默认 60 秒
+  maoyan:
+    cookie: ""   # 可选:浏览器登录猫眼专业版后复制的完整 Cookie
+
+auth:
+  # 登录账号（演示用，生产环境请替换并放加密配置）
+  username: admin
+  password: admin123
+  token-ttl-hours: 24
