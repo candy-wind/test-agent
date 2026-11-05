@@ -12,6 +12,7 @@ import vip.mate.agent.config.AgentProperties;
 import vip.mate.agent.dto.ChatMessage;
 import vip.mate.agent.dto.ChatRequest;
 import vip.mate.agent.dto.ChatResponse;
+import vip.mate.agent.platform.model.ProviderConfigResolver;
 import vip.mate.agent.service.ChatService;
 import vip.mate.agent.service.SearchService;
 
@@ -41,6 +42,7 @@ public class ChatServiceImpl implements ChatService {
     private final AgentProperties agentProperties;
     private final SearchService searchService;
     private final ToolRegistry toolRegistry;
+    private final ProviderConfigResolver providerConfigResolver;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private final HttpClient httpClient = HttpClient.newBuilder()
@@ -312,7 +314,11 @@ public class ChatServiceImpl implements ChatService {
         String name = (request.getProvider() != null && !request.getProvider().isBlank())
                 ? request.getProvider()
                 : agentProperties.getDefaultProvider();
-        AgentProperties.ProviderConfig config = agentProperties.getProviders().get(name);
+        // 优先使用数据库中的模型配置；数据库不可用或未配置时回退 application.yml
+        AgentProperties.ProviderConfig config = providerConfigResolver.resolve(name);
+        if (config == null && agentProperties.getProviders() != null) {
+            config = agentProperties.getProviders().get(name);
+        }
         if (config == null) {
             throw new IllegalArgumentException("未找到模型提供商: " + name);
         }
@@ -410,13 +416,16 @@ public class ChatServiceImpl implements ChatService {
     }
 
     private HttpRequest buildHttpRequest(AgentProperties.ProviderConfig provider, String body) {
-        return HttpRequest.newBuilder()
+        HttpRequest.Builder builder = HttpRequest.newBuilder()
                 .uri(URI.create(provider.getBaseUrl() + "/chat/completions"))
                 .header("Content-Type", "application/json")
-                .header("Authorization", "Bearer " + provider.getApiKey())
                 .POST(HttpRequest.BodyPublishers.ofString(body))
-                .timeout(Duration.ofSeconds(60))
-                .build();
+                .timeout(Duration.ofSeconds(60));
+        // 本地模型（如 Ollama / vLLM）可能不需要鉴权头
+        if (provider.getApiKey() != null && !provider.getApiKey().isBlank()) {
+            builder.header("Authorization", "Bearer " + provider.getApiKey());
+        }
+        return builder.build();
     }
 
     private String extractLastUserMessage(List<ChatMessage> messages) {
