@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>模型配置 - Candy Wind Agent</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --bg-0: #0a0e27;
+            --bg-1: #131836;
+            --glass: rgba(255, 255, 255, 0.04);
+            --border: rgba(255, 255, 255, 0.08);
+            --text: #e7ecff;
+            --muted: #8a93b8;
+            --primary: #6366f1;
+            --accent: #06ffa5;
+            --danger: #ff4d6d;
+            --warn: #ffc857;
+        }
+        html, body { height: 100%; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+            color: var(--text);
+            background:
+                radial-gradient(900px 600px at 0% 0%, rgba(99,102,241,.14), transparent 60%),
+                radial-gradient(800px 600px at 100% 100%, rgba(6,255,165,.08), transparent 60%),
+                linear-gradient(180deg, var(--bg-0), var(--bg-1));
+            min-height: 100%;
+            overflow-y: auto;
+        }
+        .page { max-width: 1120px; margin: 0 auto; padding: 28px 28px 64px; }
+
+        /* ---------- 页头 ---------- */
+        .page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 22px; }
+        .page-head h1 { font-size: 22px; letter-spacing: .5px; }
+        .page-head p { color: var(--muted); font-size: 13px; margin-top: 8px; line-height: 1.7; max-width: 680px; }
+        .btn {
+            border: 1px solid var(--border); background: rgba(255,255,255,.04); color: var(--text);
+            border-radius: 9px; padding: 8px 14px; font-size: 13px; font-family: inherit; cursor: pointer;
+            transition: all .15s; white-space: nowrap;
+        }
+        .btn:hover { background: rgba(255,255,255,.08); }
+        .btn.primary {
+            background: linear-gradient(135deg, rgba(99,102,241,.9), rgba(99,102,241,.65));
+            border-color: rgba(99,102,241,.8); color: #fff;
+            box-shadow: 0 4px 14px rgba(99,102,241,.25);
+        }
+        .btn.primary:hover { filter: brightness(1.1); }
+        .btn.danger:hover { color: var(--danger); border-color: rgba(255,77,109,.45); background: rgba(255,77,109,.07); }
+        .btn.ghost { background: transparent; }
+        .btn.small { padding: 5px 10px; font-size: 12px; border-radius: 7px; }
+        .btn:disabled { opacity: .55; cursor: not-allowed; }
+
+        /* ---------- 面板 ---------- */
+        .panel {
+            background: var(--glass); border: 1px solid var(--border); border-radius: 14px;
+            backdrop-filter: blur(18px); padding: 20px; margin-bottom: 20px;
+        }
+        .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+        .panel-head h2 { font-size: 15px; font-weight: 600; }
+        .panel-head .sub { font-size: 12px; color: var(--muted); }
+        .hint { font-size: 12px; color: var(--muted); line-height: 1.7; margin-top: 10px; }
+
+        /* ---------- 路由 ---------- */
+        .route-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+        .route-item {
+            border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px;
+            background: rgba(255,255,255,.02);
+        }
+        .route-item .route-title { display: flex; align-items: center; justify-content: space-between; margin-bottom: 9px; }
+        .route-item .route-title code { font-size: 12px; color: var(--accent); letter-spacing: 1px; }
+        .route-item .route-title .route-state { font-size: 11px; color: var(--muted); }
+        .route-item .route-title .route-state.on { color: var(--accent); }
+        select, input {
+            width: 100%; background: rgba(0,0,0,.28); border: 1px solid var(--border); color: var(--text);
+            border-radius: 8px; padding: 8px 10px; font-size: 13px; font-family: inherit; outline: none;
+            transition: border-color .15s;
+        }
+        select:focus, input:focus { border-color: rgba(99,102,241,.65); }
+        select option { background: #131836; color: var(--text); }
+
+        /* ---------- 供应商 ---------- */
+        .provider-card {
+            border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
+            background: rgba(255,255,255,.02); margin-bottom: 12px;
+        }
+        .provider-card:last-child { margin-bottom: 0; }
+        .provider-main { display: flex; align-items: center; gap: 14px; padding: 14px 16px; flex-wrap: wrap; }
+        .provider-avatar {
+            width: 38px; height: 38px; border-radius: 10px; flex-shrink: 0;
+            background: linear-gradient(135deg, rgba(99,102,241,.85), rgba(6,255,165,.5));
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 700; color: #fff; font-size: 15px;
+        }
+        .provider-info { flex: 1; min-width: 200px; }
+        .provider-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .provider-title .pname { font-size: 14px; font-weight: 600; }
+        .tag {
+            font-size: 10px; padding: 1px 7px; border-radius: 5px; letter-spacing: .5px;
+            border: 1px solid var(--border); color: var(--muted);
+        }
+        .tag.on { color: var(--accent); border-color: rgba(6,255,165,.35); background: rgba(6,255,165,.08); }
+        .tag.off { color: var(--muted); }
+        .provider-meta { font-size: 12px; color: var(--muted); margin-top: 6px; word-break: break-all; line-height: 1.6; }
+        .provider-meta code { color: #b9c2e8; }
+        .provider-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+        .provider-models { border-top: 1px dashed var(--border); padding: 14px 16px; background: rgba(0,0,0,.12); }
+        .model-row {
+            display: flex; align-items: center; gap: 12px; padding: 9px 0; flex-wrap: wrap;
+            border-bottom: 1px solid rgba(255,255,255,.04);
+        }
+        .model-row:last-of-type { border-bottom: none; }
+        .model-key { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12.5px; color: #cbd3ff; }
+        .model-name { font-size: 12px; color: var(--muted); }
+        .cap-list { display: flex; gap: 4px; flex-wrap: wrap; }
+        .cap { font-size: 10px; padding: 1px 6px; border-radius: 4px; background: rgba(99,102,241,.16); color: #a9b1ff; }
+        .model-row .spacer { flex: 1; }
+        .empty { text-align: center; padding: 26px 10px; color: var(--muted); font-size: 13px; }
+        .empty .big { font-size: 26px; display: block; margin-bottom: 8px; opacity: .5; }
+
+        /* ---------- 弹窗 ---------- */
+        .overlay {
+            position: fixed; inset: 0; background: rgba(4,7,24,.72); backdrop-filter: blur(4px);
+            display: none; align-items: center; justify-content: center; padding: 24px; z-index: 50;
+        }
+        .overlay.show { display: flex; }
+        .modal {
+            width: 100%; max-width: 520px; max-height: 88vh; overflow-y: auto;
+            background: linear-gradient(180deg, #171c3d, #12162f);
+            border: 1px solid var(--border); border-radius: 16px; padding: 22px;
+            box-shadow: 0 24px 60px rgba(0,0,0,.5);
+        }
+        .modal h3 { font-size: 16px; margin-bottom: 4px; }
+        .modal .modal-sub { font-size: 12px; color: var(--muted); margin-bottom: 18px; }
+        .field { margin-bottom: 14px; }
+        .field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+        .field .tip { font-size: 11px; color: var(--muted); margin-top: 5px; line-height: 1.5; }
+        .field-row { display: flex; gap: 12px; }
+        .field-row .field { flex: 1; }
+        .check-group { display: flex; flex-wrap: wrap; gap: 8px; }
+        .check-pill {
+            display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted);
+            border: 1px solid var(--border); border-radius: 7px; padding: 6px 10px; cursor: pointer;
+            user-select: none; transition: all .15s;
+        }
+        .check-pill input { width: auto; margin: 0; accent-color: #6366f1; }
+        .check-pill.active { color: var(--text); border-color: rgba(99,102,241,.6); background: rgba(99,102,241,.12); }
+        .switch { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); cursor: pointer; }
+        .switch input { width: auto; accent-color: #6366f1; }
+        .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+        .form-error {
+            display: none; color: var(--danger); font-size: 12px; margin-top: 4px;
+            background: rgba(255,77,109,.08); border: 1px solid rgba(255,77,109,.25);
+            border-radius: 8px; padding: 8px 10px; line-height: 1.5;
+        }
+        .form-error.show { display: block; }
+
+        /* ---------- Toast ---------- */
+        .toast-wrap { position: fixed; right: 20px; top: 18px; display: flex; flex-direction: column; gap: 8px; z-index: 100; }
+        .toast {
+            font-size: 13px; padding: 10px 14px; border-radius: 9px; max-width: 360px; line-height: 1.5;
+            background: rgba(18,24,54,.96); border: 1px solid var(--border); color: var(--text);
+            box-shadow: 0 10px 30px rgba(0,0,0,.4); animation: toast-in .18s ease-out;
+        }
+        .toast.ok { border-color: rgba(6,255,165,.4); }
+        .toast.err { border-color: rgba(255,77,109,.5); }
+        @keyframes toast-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+
+        @media (max-width: 640px) {
+            .page { padding: 18px 14px 48px; }
+            .page-head { flex-direction: column; }
+            .provider-main { align-items: flex-start; }
+        }
+    </style>
+</head>
+<body>
+<div class="page">
+    <div class="page-head">
+        <div>
+            <h1>模型配置</h1>
+            <p>管理 OpenAI 兼容的模型供应商、模型清单和全局用途路由。配置会写入数据库，对话时优先使用这里启用的 CHAT 路由；未配置时回退到 application.yml。</p>
+        </div>
+        <button class="btn primary" id="btnAddProvider">+ 新增供应商</button>
+    </div>
+
+    <section class="panel">
+        <div class="panel-head">
+            <h2>用途路由</h2>
+            <span class="sub">把不同用途指向具体模型</span>
+        </div>
+        <div class="route-grid" id="routeGrid"></div>
+        <p class="hint">CHAT 是普通对话使用的主路由；EMBEDDING 是知识库向量化要用的路由。路由只能指向已添加的模型。</p>
+    </section>
+
+    <section class="panel">
+        <div class="panel-head">
+            <h2>供应商</h2>
+            <span class="sub" id="providerCount"></span>
+        </div>
+        <div id="providerList"><div class="empty">加载中…</div></div>
+    </section>
+</div>
+
+<!-- 供应商弹窗 -->
+<div class="overlay" id="providerOverlay">
+    <div class="modal">
+        <h3 id="providerModalTitle">新增供应商</h3>
+        <p class="modal-sub">兼容 OpenAI API 格式的服务都可以接入，例如 DeepSeek、通义千问、Ollama、vLLM。</p>
+        <form id="providerForm">
+            <div class="field">
+                <label for="pName">名称 *</label>
+                <input id="pName" required placeholder="deepseek" autocomplete="off"/>
+                <div class="tip">与 application.yml 中 provider 的 key 保持一致时，对话会优先使用数据库配置。</div>
+            </div>
+            <div class="field">
+                <label for="pBaseUrl">Base URL *</label>
+                <input id="pBaseUrl" required placeholder="https://api.deepseek.com/v1" autocomplete="off"/>
+                <div class="tip">不要带末尾斜杠；测试连接和对话都会请求 {Base URL}/models 与 /chat/completions。</div>
+            </div>
+            <div class="field">
+                <label for="pApiKey">API Key</label>
+                <input id="pApiKey" type="password" placeholder="sk-..." autocomplete="new-password"/>
+                <div class="tip" id="pApiKeyTip">保存后仅显示掩码；编辑时留空表示不修改。</div>
+            </div>
+            <div class="field-row">
+                <div class="field">
+                    <label for="pType">类型</label>
+                    <select id="pType">
+                        <option value="OPENAI_COMPATIBLE">OPENAI_COMPATIBLE</option>
+                    </select>
+                </div>
+                <div class="field" style="display:flex;align-items:flex-end;padding-bottom:10px;">
+                    <label class="switch"><input type="checkbox" id="pEnabled" checked/> 启用</label>
+                </div>
+            </div>
+            <div class="form-error" id="providerError"></div>
+            <div class="modal-actions">
+                <button type="button" class="btn ghost" data-close="providerOverlay">取消</button>
+                <button type="submit" class="btn primary" id="providerSubmit">保存</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- 模型弹窗 -->
+<div class="overlay" id="modelOverlay">
+    <div class="modal">
+        <h3>新增模型</h3>
+        <p class="modal-sub" id="modelModalSub"></p>
+        <form id="modelForm">
+            <div class="field">
+                <label for="mKey">模型标识 *</label>
+                <input id="mKey" required placeholder="deepseek-chat" autocomplete="off"/>
+                <div class="tip">调用 API 时传给服务商的 model 字段，例如 deepseek-chat、qwen-plus。</div>
+            </div>
+            <div class="field">
+                <label for="mName">显示名称</label>
+                <input id="mName" placeholder="DeepSeek Chat" autocomplete="off"/>
+            </div>
+            <div class="field">
+                <label>能力</label>
+                <div class="check-group" id="mCaps"></div>
+            </div>
+            <div class="field">
+                <label for="mContext">上下文长度</label>
+                <input id="mContext" type="number" min="0" step="1000" placeholder="64000"/>
+            </div>
+            <div class="form-error" id="modelError"></div>
+            <div class="modal-actions">
+                <button type="button" class="btn ghost" data-close="modelOverlay">取消</button>
+                <button type="submit" class="btn primary" id="modelSubmit">保存</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="toast-wrap" id="toasts"></div>
+
+<script>
+const API = '/api/v1/platform';
+const PURPOSES = ['CHAT', 'REASONER', 'VISION', 'EMBEDDING', 'RERANK', 'FAST'];
+const CAPABILITIES = ['CHAT', 'VISION', 'REASONER', 'EMBEDDING', 'RERANK'];
+
+const state = {
+    providers: [],
+    models: {},          // providerId -> ModelView[]
+    routes: [],
+    expanded: new Set(),
+    editingProvider: null,
+    modelProviderId: null
+};
+
+/* ---------------- 基础工具 ---------------- */
+
+async function api(path, options = {}) {
+    const { headers, ...rest } = options;
+    const res = await fetch(API + path, {
+        credentials: 'same-origin',
+        ...rest,
+        headers: { 'Content-Type': 'application/json', ...(headers || {}) }
+    });
+    if (res.status === 401 || res.status === 403) {
+        location.href = '/login.html';
+        throw new Error('登录已过期');
+    }
+    let body;
+    try { body = await res.json(); } catch (e) { throw new Error('响应解析失败 (HTTP ' + res.status + ')'); }
+    if (body.code !== 0) throw new Error(body.message || '请求失败');
+    return body.data;
+}
+
+function esc(value) {
+    return String(value == null ? '' : value)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function toast(message, type) {
+    const wrap = document.getElementById('toasts');
+    const el = document.createElement('div');
+    el.className = 'toast ' + (type || '');
+    el.textContent = message;
+    wrap.appendChild(el);
+    setTimeout(() => el.remove(), 3800);
+}
+
+function openOverlay(id) { document.getElementById(id).classList.add('show'); }
+function closeOverlay(id) { document.getElementById(id).classList.remove('show'); }
+
+/* ---------------- 数据加载 ---------------- */
+
+async function loadAll() {
+    const providers = await api('/providers');
+    const models = {};
+    await Promise.all(providers.map(async (p) => {
+        try { models[p.id] = await api('/providers/' + p.id + '/models'); }
+        catch (e) { models[p.id] = []; }
+    }));
+    const routes = await api('/routes');
+    state.providers = providers;
+    state.models = models;
+    state.routes = routes;
+}
+
+function allModelOptions() {
+    const options = [];
+    state.providers.forEach((p) => {
+        (state.models[p.id] || []).forEach((m) => {
+            options.push({
+                id: m.id,
+                label: p.name + ' / ' + (m.displayName || m.modelKey) + ' (' + m.modelKey + ')',
+                providerName: p.name,
+                enabled: m.enabled !== false
+            });
+        });
+    });
+    return options;
+}
+
+/* ---------------- 渲染：路由 ---------------- */
+
+function renderRoutes() {
+    const grid = document.getElementById('routeGrid');
+    const options = allModelOptions();
+
+    grid.innerHTML = PURPOSES.map((purpose) => {
+        const route = state.routes.find((r) => r.purpose === purpose);
+        const selectedId = route ? route.modelId : '';
+        const opts = ['<option value="">未配置</option>'].concat(
+            options.map((o) => {
+                const selected = String(o.id) === String(selectedId) ? ' selected' : '';
+                const disabled = o.enabled ? '' : ' disabled';
+                return '<option value="' + o.id + '"' + selected + disabled + '>' +
+                    esc(o.label) + (o.enabled ? '' : ' — 已停用') + '</option>';
+            })
+        ).join('');
+        const stateText = route
+            ? '<span class="route-state on">已配置</span>'
+            : '<span class="route-state">未配置</span>';
+        return '<div class="route-item">' +
+            '<div class="route-title"><code>' + purpose + '</code>' + stateText + '</div>' +
+            '<select data-purpose="' + purpose + '">' + opts + '</select>' +
+        '</div>';
+    }).join('');
+
+    grid.querySelectorAll('select[data-purpose]').forEach((select) => {
+        select.addEventListener('change', () => saveRoute(select));
+    });
+}
+
+async function saveRoute(select) {
+    const purpose = select.dataset.purpose;
+    const modelId = select.value;
+    if (!modelId) { toast('路由暂不支持清空，请选择具体模型', 'err'); await refresh(); return; }
+    select.disabled = true;
+    try {
+        await api('/routes/' + purpose, { method: 'PUT', body: JSON.stringify({ modelId: Number(modelId) }) });
+        toast(purpose + ' 路由已更新', 'ok');
+        await refresh();
+    } catch (e) {
+        toast(e.message, 'err');
+        select.disabled = false;
+        await refresh();
+    }
+}
+
+/* ---------------- 渲染：供应商 ---------------- */
+
+function renderProviders() {
+    const list = document.getElementById('providerList');
+    document.getElementById('providerCount').textContent = state.providers.length
+        ? '共 ' + state.providers.length + ' 个'
+        : '';
+
+    if (!state.providers.length) {
+        list.innerHTML = '<div class="empty"><span class="big">⚙</span>还没有供应商。点击右上角「新增供应商」接入第一个模型服务。</div>';
+        return;
+    }
+
+    list.innerHTML = state.providers.map((p) => {
+        const models = state.models[p.id] || [];
+        const expanded = state.expanded.has(p.id);
+        const enabledTag = p.enabled === false
+            ? '<span class="tag off">已停用</span>'
+            : '<span class="tag on">启用中</span>';
+        const modelRows = models.length
+            ? models.map((m) => {
+                const caps = (m.capabilities || []).map((c) => '<span class="cap">' + esc(c) + '</span>').join('');
+                return '<div class="model-row" data-model-id="' + m.id + '">' +
+                    '<div><div class="model-key">' + esc(m.modelKey) + '</div>' +
+                    '<div class="model-name">' + esc(m.displayName || '') +
+                    (m.contextWindow ? ' · ' + m.contextWindow + ' tokens' : '') +
+                    (m.enabled === false ? ' · 已停用' : '') + '</div></div>' +
+                    '<div class="cap-list">' + caps + '</div>' +
+                    '<div class="spacer"></div>' +
+                    '<button type="button" class="btn small danger" data-act="del-model" data-id="' + m.id + '" data-key="' + esc(m.modelKey) + '">删除</button>' +
+                '</div>';
+            }).join('')
+            : '<div class="empty" style="padding:14px;">该供应商还没有模型</div>';
+
+        return '<div class="provider-card" data-provider-id="' + p.id + '">' +
+            '<div class="provider-main">' +
+                '<div class="provider-avatar">' + esc((p.name || '?').charAt(0).toUpperCase()) + '</div>' +
+                '<div class="provider-info">' +
+                    '<div class="provider-title"><span class="pname">' + esc(p.name) + '</span>' +
+                        '<span class="tag">' + esc(p.type || 'OPENAI_COMPATIBLE') + '</span>' + enabledTag +
+                        '<span class="tag">' + models.length + ' 个模型</span>' +
+                    '</div>' +
+                    '<div class="provider-meta">Base URL：<code>' + esc(p.baseUrl) + '</code> · Key：<code>' +
+                        esc(p.apiKeyMasked || '未设置') + '</code></div>' +
+                '</div>' +
+                '<div class="provider-actions">' +
+                    '<button type="button" class="btn small" data-act="test" data-id="' + p.id + '">测试连接</button>' +
+                    '<button type="button" class="btn small" data-act="toggle" data-id="' + p.id + '">' + (expanded ? '收起模型' : '管理模型') + '</button>' +
+                    '<button type="button" class="btn small" data-act="edit" data-id="' + p.id + '">编辑</button>' +
+                    '<button type="button" class="btn small danger" data-act="del" data-id="' + p.id + '" data-name="' + esc(p.name) + '">删除</button>' +
+                '</div>' +
+            '</div>' +
+            (expanded ? '<div class="provider-models">' + modelRows +
+                '<div style="margin-top:12px;text-align:right;">' +
+                '<button type="button" class="btn small primary" data-act="add-model" data-id="' + p.id + '">+ 新增模型</button>' +
+                '</div></div>' : '') +
+        '</div>';
+    }).join('');
+}
+
+/* ---------------- 事件 ---------------- */
+
+document.getElementById('providerList').addEventListener('click', async (event) => {
+    const btn = event.target.closest('button[data-act]');
+    if (!btn) return;
+    const act = btn.dataset.act;
+    const id = Number(btn.dataset.id);
+
+    if (act === 'toggle') {
+        if (state.expanded.has(id)) state.expanded.delete(id); else state.expanded.add(id);
+        renderProviders();
+        return;
+    }
+
+    if (act === 'test') {
+        const original = btn.textContent;
+        btn.disabled = true; btn.textContent = '测试中…';
+        try {
+            const r = await api('/providers/' + id + '/test', { method: 'POST' });
+            const msg = (r.ok ? '连接成功' : '连接失败') + ' · ' + (r.latencyMs || 0) + 'ms' +
+                (r.httpStatus ? ' · HTTP ' + r.httpStatus : '') +
+                (r.ok ? '' : ' · ' + (r.message || ''));
+            toast(msg, r.ok ? 'ok' : 'err');
+        } catch (e) {
+            toast(e.message, 'err');
+        } finally {
+            btn.disabled = false; btn.textContent = original;
+        }
+        return;
+    }
+
+    if (act === 'edit') {
+        const provider = state.providers.find((p) => p.id === id);
+        if (!provider) return;
+        state.editingProvider = provider;
+        document.getElementById('providerModalTitle').textContent = '编辑供应商';
+        document.getElementById('pName').value = provider.name || '';
+        document.getElementById('pBaseUrl').value = provider.baseUrl || '';
+        document.getElementById('pApiKey').value = '';
+        document.getElementById('pApiKeyTip').textContent = '留空表示不修改当前 Key（' + (provider.apiKeyMasked || '未设置') + '）。';
+        document.getElementById('pType').value = provider.type || 'OPENAI_COMPATIBLE';
+        document.getElementById('pEnabled').checked = provider.enabled !== false;
+        document.getElementById('providerError').classList.remove('show');
+        openOverlay('providerOverlay');
+        return;
+    }
+
+    if (act === 'del') {
+        if (!confirm('删除供应商「' + btn.dataset.name + '」及其模型？此操作不可撤销。')) return;
+        try {
+            await api('/providers/' + id, { method: 'DELETE' });
+            toast('供应商已删除', 'ok');
+            state.expanded.delete(id);
+            await refresh();
+        } catch (e) { toast(e.message, 'err'); }
+        return;
+    }
+
+    if (act === 'add-model') {
+        state.modelProviderId = id;
+        const provider = state.providers.find((p) => p.id === id);
+        document.getElementById('modelModalSub').textContent = '添加到供应商：' + (provider ? provider.name : id);
+        document.getElementById('mKey').value = '';
+        document.getElementById('mName').value = '';
+        document.getElementById('mContext').value = '';
+        document.querySelectorAll('#mCaps input[type=checkbox]').forEach((c) => {
+            c.checked = c.value === 'CHAT';
+            c.closest('.check-pill').classList.toggle('active', c.checked);
+        });
+        document.getElementById('modelError').classList.remove('show');
+        openOverlay('modelOverlay');
+        return;
+    }
+
+    if (act === 'del-model') {
+        if (!confirm('删除模型「' + btn.dataset.key + '」？')) return;
+        try {
+            await api('/models/' + id, { method: 'DELETE' });
+            toast('模型已删除', 'ok');
+            await refresh();
+        } catch (e) { toast(e.message, 'err'); }
+    }
+});
+
+/* ---------------- 供应商表单 ---------------- */
+
+document.getElementById('btnAddProvider').addEventListener('click', () => {
+    state.editingProvider = null;
+    document.getElementById('providerModalTitle').textContent = '新增供应商';
+    document.getElementById('providerForm').reset();
+    document.getElementById('pType').value = 'OPENAI_COMPATIBLE';
+    document.getElementById('pEnabled').checked = true;
+    document.getElementById('pApiKeyTip').textContent = '保存后仅显示掩码；编辑时留空表示不修改。';
+    document.getElementById('providerError').classList.remove('show');
+    openOverlay('providerOverlay');
+});
+
+document.getElementById('providerForm').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const submit = document.getElementById('providerSubmit');
+    const errorBox = document.getElementById('providerError');
+    const payload = {
+        name: document.getElementById('pName').value.trim(),
+        type: document.getElementById('pType').value,
+        baseUrl: document.getElementById('pBaseUrl').value.trim(),
+        apiKey: document.getElementById('pApiKey').value.trim(),
+        enabled: document.getElementById('pEnabled').checked
+    };
+    submit.disabled = true; submit.textContent = '保存中…';
+    try {
+        if (state.editingProvider) {
+            await api('/providers/' + state.editingProvider.id, { method: 'PUT', body: JSON.stringify(payload) });
+            toast('供应商已更新', 'ok');
+        } else {
+            await api('/providers', { method: 'POST', body: JSON.stringify(payload) });
+            toast('供应商已创建', 'ok');
+        }
+        closeOverlay('providerOverlay');
+        await refresh();
+    } catch (e) {
+        errorBox.textContent = e.message;
+        errorBox.classList.add('show');
+    } finally {
+        submit.disabled = false; submit.textContent = '保存';
+    }
+});
+
+/* ---------------- 模型表单 ---------------- */
+
+function initCapabilityChecks() {
+    const wrap = document.getElementById('mCaps');
+    wrap.innerHTML = CAPABILITIES.map((c) =>
+        '<label class="check-pill' + (c === 'CHAT' ? ' active' : '') + '">' +
+        '<input type="checkbox" value="' + c + '"' + (c === 'CHAT' ? ' checked' : '') + '/>' + c +
+        '</label>'
+    ).join('');
+    wrap.querySelectorAll('input[type=checkbox]').forEach((input) => {
+        input.addEventListener('change', () => {
+            input.closest('.check-pill').classList.toggle('active', input.checked);
+        });
+    });
+}
+
+document.getElementById('modelForm').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const submit = document.getElementById('modelSubmit');
+    const errorBox = document.getElementById('modelError');
+    const capabilities = Array.from(document.querySelectorAll('#mCaps input:checked')).map((c) => c.value);
+    if (!capabilities.length) {
+        errorBox.textContent = '至少选择一项能力';
+        errorBox.classList.add('show');
+        return;
+    }
+    const contextValue = document.getElementById('mContext').value;
+    const payload = {
+        modelKey: document.getElementById('mKey').value.trim(),
+        displayName: document.getElementById('mName').value.trim(),
+        capabilities: capabilities,
+        contextWindow: contextValue ? Number(contextValue) : null,
+        enabled: true
+    };
+    submit.disabled = true; submit.textContent = '保存中…';
+    try {
+        await api('/providers/' + state.modelProviderId + '/models', { method: 'POST', body: JSON.stringify(payload) });
+        toast('模型已添加', 'ok');
+        closeOverlay('modelOverlay');
+        state.expanded.add(state.modelProviderId);
+        await refresh();
+    } catch (e) {
+        errorBox.textContent = e.message;
+        errorBox.classList.add('show');
+    } finally {
+        submit.disabled = false; submit.textContent = '保存';
+    }
+});
+
+/* ---------------- 通用弹窗关闭 ---------------- */
+
+document.querySelectorAll('[data-close]').forEach((btn) => {
+    btn.addEventListener('click', () => closeOverlay(btn.dataset.close));
+});
+document.querySelectorAll('.overlay').forEach((overlay) => {
+    overlay.addEventListener('click', (event) => {
+        if (event.target === overlay) overlay.classList.remove('show');
+    });
+});
+document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+        document.querySelectorAll('.overlay.show').forEach((o) => o.classList.remove('show'));
+    }
+});
+
+/* ---------------- 刷新 ---------------- */
+
+async function refresh() {
+    try {
+        await loadAll();
+        renderRoutes();
+        renderProviders();
+    } catch (e) {
+        document.getElementById('providerList').innerHTML =
+            '<div class="empty">加载失败：' + esc(e.message) + '</div>';
+    }
+}
+
+initCapabilityChecks();
+refresh();
+</script>
+</body>
+</html>

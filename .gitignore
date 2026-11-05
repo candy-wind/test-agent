@@ -1,6 +1,7 @@
 target/
 logs/
 uploads/
+data/
 .idea/
 *.iml
 .DS_Store

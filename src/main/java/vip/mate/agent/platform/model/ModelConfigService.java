@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vip.mate.agent.config.AgentProperties;
 import vip.mate.agent.platform.common.CryptoService;
+import vip.mate.agent.platform.model.dto.ModelEndpoint;
 import vip.mate.agent.platform.model.dto.ModelRequest;
 import vip.mate.agent.platform.model.dto.ModelView;
 import vip.mate.agent.platform.model.dto.ProviderRequest;
@@ -274,6 +275,36 @@ public class ModelConfigService {
         config.setVisionModel(pickModel(models, "VISION"));
         config.setReasonerModel(pickModel(models, "REASONER"));
         return config;
+    }
+
+    /**
+     * 按用途（EMBEDDING / CHAT / ...）解析出可用的模型端点。
+     * 未配置路由、模型或供应商被停用时返回 null，由调用方决定回退或报错。
+     */
+    @Transactional(readOnly = true)
+    public ModelEndpoint resolveEndpoint(String purpose) {
+        String normalized = purpose == null ? "" : purpose.trim().toUpperCase(Locale.ROOT);
+        Long workspaceId = workspaceService.defaultWorkspaceId();
+        AiModelRoute route = routeRepository.findByWorkspaceIdAndPurpose(workspaceId, normalized)
+                .orElse(null);
+        if (route == null) {
+            return null;
+        }
+        AiModel model = modelRepository.findById(route.getModelId()).orElse(null);
+        if (model == null || !Boolean.TRUE.equals(model.getEnabled())) {
+            return null;
+        }
+        AiProvider provider = providerRepository.findById(model.getProviderId()).orElse(null);
+        if (provider == null || !Boolean.TRUE.equals(provider.getEnabled())) {
+            return null;
+        }
+        return new ModelEndpoint(
+                provider.getId(),
+                provider.getName(),
+                trimTrailingSlash(provider.getBaseUrl()),
+                cryptoService.decrypt(provider.getApiKeyCipher()),
+                model.getModelKey()
+        );
     }
 
     // ==================== 内部方法 ====================

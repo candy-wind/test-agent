@@ -86,3 +86,16 @@ platform:
     enabled: true          # 首次启动自动初始化管理员/默认空间，并从 agent.providers 种子供应商
   # 用于加密数据库中的模型 API Key，生产环境必须通过 APP_SECRET_KEY 覆盖
   secret-key: ${APP_SECRET_KEY:dev-only-change-me}
+  knowledge:
+    # 与 kb_embedding.embedding 的 vector(1024) 保持一致；换模型维度时需要修改迁移脚本
+    embedding-dimension: 1024
+    embedding-batch-size: 16
+    # 上传原文件的本地存储目录（相对项目根目录）
+    storage-dir: ${KB_STORAGE_DIR:./data/kb}
+    # 单次检索默认返回条数
+    default-top-k: 5
+    max-top-k: 20
+    # 拼进提示词的检索内容上限（字符数），避免超出上下文
+    max-context-chars: 8000
+    # RAG 问答最多携带的历史消息条数
+    max-history-messages: 12

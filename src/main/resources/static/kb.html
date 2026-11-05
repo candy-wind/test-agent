@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>知识库 - Candy Wind Agent</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --bg-0: #0a0e27;
+            --bg-1: #131836;
+            --glass: rgba(255, 255, 255, 0.04);
+            --border: rgba(255, 255, 255, 0.08);
+            --text: #e7ecff;
+            --muted: #8a93b8;
+            --primary: #6366f1;
+            --accent: #06ffa5;
+            --danger: #ff4d6d;
+            --warn: #ffc857;
+        }
+        html, body { height: 100%; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+            color: var(--text);
+            background:
+                radial-gradient(900px 600px at 0% 0%, rgba(99,102,241,.14), transparent 60%),
+                radial-gradient(800px 600px at 100% 100%, rgba(6,255,165,.08), transparent 60%),
+                linear-gradient(180deg, var(--bg-0), var(--bg-1));
+            min-height: 100%;
+            overflow-y: auto;
+        }
+        .page { max-width: 1220px; margin: 0 auto; padding: 26px 26px 56px; }
+
+        .page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
+        .page-head h1 { font-size: 22px; letter-spacing: .5px; }
+        .page-head p { color: var(--muted); font-size: 13px; margin-top: 8px; line-height: 1.7; max-width: 720px; }
+
+        .btn {
+            border: 1px solid var(--border); background: rgba(255,255,255,.04); color: var(--text);
+            border-radius: 9px; padding: 8px 14px; font-size: 13px; font-family: inherit; cursor: pointer;
+            transition: all .15s; white-space: nowrap;
+        }
+        .btn:hover { background: rgba(255,255,255,.08); }
+        .btn.primary { background: linear-gradient(135deg, rgba(99,102,241,.9), rgba(99,102,241,.65)); border-color: rgba(99,102,241,.8); color: #fff; box-shadow: 0 4px 14px rgba(99,102,241,.25); }
+        .btn.primary:hover { filter: brightness(1.1); }
+        .btn.danger:hover { color: var(--danger); border-color: rgba(255,77,109,.45); background: rgba(255,77,109,.07); }
+        .btn.small { padding: 5px 10px; font-size: 12px; border-radius: 7px; }
+        .btn.ghost { background: transparent; }
+        .btn:disabled { opacity: .55; cursor: not-allowed; }
+
+        .kb-layout { display: grid; grid-template-columns: 286px minmax(0, 1fr); gap: 18px; align-items: start; }
+        .panel { background: var(--glass); border: 1px solid var(--border); border-radius: 14px; backdrop-filter: blur(18px); }
+        .kb-side { padding: 16px; position: sticky; top: 16px; }
+        .side-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+        .side-head h2 { font-size: 14px; font-weight: 600; }
+        .icon-btn {
+            width: 28px; height: 28px; border-radius: 8px; border: 1px solid var(--border);
+            background: rgba(255,255,255,.04); color: var(--text); cursor: pointer; font-size: 16px;
+            line-height: 1; display: flex; align-items: center; justify-content: center;
+        }
+        .icon-btn:hover { background: rgba(99,102,241,.2); border-color: rgba(99,102,241,.5); }
+
+        .kb-item {
+            padding: 12px; border-radius: 10px; border: 1px solid transparent; cursor: pointer;
+            margin-bottom: 6px; transition: all .15s;
+        }
+        .kb-item:hover { background: rgba(255,255,255,.04); }
+        .kb-item.active { background: linear-gradient(135deg, rgba(99,102,241,.22), rgba(6,255,165,.06)); border-color: rgba(99,102,241,.42); }
+        .kb-item .name { font-size: 13.5px; font-weight: 600; display: flex; align-items: center; gap: 7px; }
+        .kb-item .desc { font-size: 11.5px; color: var(--muted); margin-top: 5px; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .kb-item .stats { font-size: 11px; color: var(--muted); margin-top: 7px; display: flex; gap: 10px; }
+        .kb-item .stats span { color: #aab3d8; }
+
+        .kb-main { padding: 20px; min-height: 560px; }
+        .kb-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+        .kb-head h2 { font-size: 18px; }
+        .kb-head .desc { font-size: 12.5px; color: var(--muted); margin-top: 7px; line-height: 1.6; }
+        .kb-meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+        .pill { font-size: 11px; padding: 3px 9px; border-radius: 6px; border: 1px solid var(--border); color: var(--muted); }
+        .pill.ok { color: var(--accent); border-color: rgba(6,255,165,.3); background: rgba(6,255,165,.06); }
+        .pill.warn { color: var(--warn); border-color: rgba(255,200,87,.35); background: rgba(255,200,87,.07); }
+        .head-actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+        .tabs { display: flex; gap: 6px; margin: 16px 0; }
+        .tab-btn {
+            border: 1px solid transparent; background: transparent; color: var(--muted);
+            padding: 7px 14px; border-radius: 8px; font-size: 13px; font-family: inherit; cursor: pointer;
+        }
+        .tab-btn:hover { color: var(--text); background: rgba(255,255,255,.04); }
+        .tab-btn.active { color: #fff; background: rgba(99,102,241,.18); border-color: rgba(99,102,241,.4); }
+
+        .tab-pane.hidden { display: none; }
+        .empty-main { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 520px; color: var(--muted); text-align: center; padding: 40px; }
+        .empty-main .big { font-size: 40px; opacity: .45; margin-bottom: 14px; }
+        .empty-main h3 { font-size: 16px; color: var(--text); margin-bottom: 8px; }
+        .empty-main p { font-size: 13px; line-height: 1.8; max-width: 420px; }
+
+        /* 上传 */
+        .upload-zone {
+            border: 1.5px dashed rgba(255,255,255,.16); border-radius: 12px; padding: 24px;
+            text-align: center; cursor: pointer; transition: all .18s; background: rgba(255,255,255,.015);
+        }
+        .upload-zone:hover, .upload-zone.drag { border-color: rgba(99,102,241,.65); background: rgba(99,102,241,.08); }
+        .upload-zone .uz-icon { font-size: 26px; opacity: .7; margin-bottom: 8px; }
+        .upload-zone .uz-title { font-size: 13.5px; }
+        .upload-zone .uz-sub { font-size: 11.5px; color: var(--muted); margin-top: 6px; line-height: 1.6; }
+        .upload-status { font-size: 12px; color: var(--warn); margin-top: 10px; min-height: 16px; }
+
+        /* 文档列表 */
+        .doc-table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+        .doc-table th {
+            text-align: left; font-size: 11px; color: var(--muted); font-weight: 500;
+            padding: 8px 10px; border-bottom: 1px solid var(--border); letter-spacing: .5px;
+        }
+        .doc-table td { padding: 11px 10px; border-bottom: 1px solid rgba(255,255,255,.045); font-size: 12.5px; vertical-align: middle; }
+        .doc-table tr:last-child td { border-bottom: none; }
+        .doc-name { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .doc-error { font-size: 11px; color: var(--danger); margin-top: 4px; max-width: 340px; line-height: 1.5; }
+        .status { font-size: 10.5px; padding: 2px 8px; border-radius: 5px; white-space: nowrap; }
+        .status.READY { color: var(--accent); background: rgba(6,255,165,.1); }
+        .status.FAILED { color: var(--danger); background: rgba(255,77,109,.12); }
+        .status.PENDING { color: var(--warn); background: rgba(255,200,87,.12); }
+        .muted { color: var(--muted); }
+
+        /* 检索 */
+        .search-bar { display: flex; gap: 8px; margin-bottom: 16px; }
+        .search-bar input { flex: 1; }
+        .search-bar select { width: 118px; }
+        input, select, textarea {
+            width: 100%; background: rgba(0,0,0,.28); border: 1px solid var(--border); color: var(--text);
+            border-radius: 8px; padding: 9px 11px; font-size: 13px; font-family: inherit; outline: none;
+        }
+        input:focus, select:focus, textarea:focus { border-color: rgba(99,102,241,.65); }
+        select option { background: #131836; }
+        .result-card {
+            border: 1px solid var(--border); border-radius: 10px; padding: 13px 15px; margin-bottom: 10px;
+            background: rgba(255,255,255,.02);
+        }
+        .result-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+        .result-doc { font-size: 12px; color: #c3cbf3; font-weight: 600; }
+        .result-seq { font-size: 10.5px; color: var(--muted); }
+        .score { margin-left: auto; font-size: 11px; color: var(--accent); background: rgba(6,255,165,.08); padding: 2px 8px; border-radius: 5px; }
+        .result-content { font-size: 12.5px; line-height: 1.75; color: #d3d9f5; white-space: pre-wrap; }
+
+        /* 问答 */
+        .chat-pane { display: flex; flex-direction: column; height: 560px; }
+        .chat-messages { flex: 1; overflow-y: auto; padding: 4px 4px 12px; }
+        .msg { margin-bottom: 16px; display: flex; gap: 10px; }
+        .msg .avatar { width: 28px; height: 28px; border-radius: 8px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; }
+        .msg.user .avatar { background: linear-gradient(135deg, #ff7a00, #ffc857); color: #201400; }
+        .msg.assistant .avatar { background: linear-gradient(135deg, var(--primary), var(--accent)); color: #04120b; }
+        .msg .bubble { flex: 1; min-width: 0; }
+        .msg .who { font-size: 11px; color: var(--muted); margin-bottom: 5px; }
+        .msg .text { font-size: 13.5px; line-height: 1.8; white-space: pre-wrap; word-break: break-word; }
+        .msg .text.streaming::after { content: "▍"; color: var(--accent); animation: blink 1s step-end infinite; }
+        @keyframes blink { 50% { opacity: 0; } }
+        .msg .error-text { color: var(--danger); font-size: 12.5px; line-height: 1.6; }
+        .citations { margin-bottom: 10px; display: flex; flex-direction: column; gap: 6px; }
+        .citation {
+            border-left: 2px solid rgba(99,102,241,.65); background: rgba(99,102,241,.07);
+            border-radius: 0 7px 7px 0; padding: 7px 10px; font-size: 11.5px; color: #c9d0f2;
+        }
+        .citation .c-head { display: flex; gap: 8px; align-items: center; margin-bottom: 3px; }
+        .citation .c-head b { font-weight: 600; color: #dfe4ff; }
+        .citation .c-head .s { margin-left: auto; color: var(--accent); }
+        .citation .c-body { color: var(--muted); line-height: 1.6; max-height: 44px; overflow: hidden; }
+        .citation details summary { cursor: pointer; color: var(--muted); font-size: 11px; margin-top: 3px; }
+        .citation details[open] .c-body { max-height: none; }
+        .chat-input { display: flex; gap: 8px; padding-top: 12px; border-top: 1px solid var(--border); align-items: flex-end; }
+        .chat-input textarea { flex: 1; resize: none; height: 58px; line-height: 1.6; }
+        .chat-hint { font-size: 11px; color: var(--muted); margin-top: 8px; text-align: right; }
+
+        /* 弹窗 */
+        .overlay { position: fixed; inset: 0; background: rgba(4,7,24,.72); backdrop-filter: blur(4px); display: none; align-items: center; justify-content: center; padding: 24px; z-index: 50; }
+        .overlay.show { display: flex; }
+        .modal { width: 100%; max-width: 540px; max-height: 88vh; overflow-y: auto; background: linear-gradient(180deg, #171c3d, #12162f); border: 1px solid var(--border); border-radius: 16px; padding: 22px; box-shadow: 0 24px 60px rgba(0,0,0,.5); }
+        .modal.wide { max-width: 760px; }
+        .modal h3 { font-size: 16px; margin-bottom: 4px; }
+        .modal .modal-sub { font-size: 12px; color: var(--muted); margin-bottom: 18px; }
+        .field { margin-bottom: 14px; }
+        .field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+        .field .tip { font-size: 11px; color: var(--muted); margin-top: 5px; line-height: 1.5; }
+        .field-row { display: flex; gap: 12px; }
+        .field-row .field { flex: 1; }
+        .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+        .form-error { display: none; color: var(--danger); font-size: 12px; margin-top: 4px; background: rgba(255,77,109,.08); border: 1px solid rgba(255,77,109,.25); border-radius: 8px; padding: 8px 10px; line-height: 1.5; }
+        .form-error.show { display: block; }
+        .chunk-item { border: 1px solid var(--border); border-radius: 9px; padding: 11px 13px; margin-bottom: 9px; background: rgba(255,255,255,.02); }
+        .chunk-item .ch { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+        .chunk-item .cc { font-size: 12.5px; line-height: 1.75; white-space: pre-wrap; color: #d3d9f5; }
+
+        .toast-wrap { position: fixed; right: 20px; top: 18px; display: flex; flex-direction: column; gap: 8px; z-index: 100; }
+        .toast { font-size: 13px; padding: 10px 14px; border-radius: 9px; max-width: 380px; line-height: 1.5; background: rgba(18,24,54,.96); border: 1px solid var(--border); color: var(--text); box-shadow: 0 10px 30px rgba(0,0,0,.4); }
+        .toast.ok { border-color: rgba(6,255,165,.4); }
+        .toast.err { border-color: rgba(255,77,109,.5); }
+
+        @media (max-width: 900px) {
+            .kb-layout { grid-template-columns: 1fr; }
+            .kb-side { position: static; }
+        }
+        @media (max-width: 640px) {
+            .page { padding: 16px 12px 40px; }
+            .page-head { flex-direction: column; }
+            .chat-pane { height: 480px; }
+        }
+    </style>
+</head>
+<body>
+<div class="page">
+    <div class="page-head">
+        <div>
+            <h1>知识库</h1>
+            <p>上传文档后自动解析、切分并向量化。对话时先检索相关片段再回答，并给出引用来源。向量化使用「模型配置」中设置的 EMBEDDING 路由。</p>
+        </div>
+        <button class="btn primary" id="btnNewKb">+ 新建知识库</button>
+    </div>
+
+    <div class="kb-layout">
+        <aside class="panel kb-side">
+            <div class="side-head">
+                <h2>我的知识库</h2>
+                <button class="icon-btn" id="btnNewKb2" title="新建知识库">+</button>
+            </div>
+            <div id="kbList"><div class="muted" style="font-size:12px;padding:8px;">加载中…</div></div>
+        </aside>
+
+        <main class="panel kb-main">
+            <div class="empty-main" id="emptyMain">
+                <div class="big">📚</div>
+                <h3>还没有选择知识库</h3>
+                <p>从左侧选择一个知识库，或者点击「新建知识库」开始。建议先接入 1024 维的 embedding 模型（例如通义 text-embedding-v3）。</p>
+            </div>
+
+            <div id="kbMain" style="display:none;">
+                <header class="kb-head">
+                    <div style="min-width:0;">
+                        <h2 id="kbName"></h2>
+                        <p class="desc" id="kbDesc"></p>
+                        <div class="kb-meta">
+                            <span class="pill" id="kbStats"></span>
+                            <span class="pill" id="kbEmbedding"></span>
+                            <span class="pill" id="kbChunkConfig"></span>
+                        </div>
+                    </div>
+                    <div class="head-actions">
+                        <button class="btn small" id="btnEditKb">编辑</button>
+                        <button class="btn small danger" id="btnDelKb">删除</button>
+                    </div>
+                </header>
+
+                <nav class="tabs">
+                    <button type="button" class="tab-btn active" data-tab="docs">文档</button>
+                    <button type="button" class="tab-btn" data-tab="search">检索测试</button>
+                    <button type="button" class="tab-btn" data-tab="chat">知识问答</button>
+                </nav>
+
+                <section class="tab-pane" id="tab-docs">
+                    <div class="upload-zone" id="uploadZone">
+                        <div class="uz-icon">⬆</div>
+                        <div class="uz-title">点击或拖拽文件到这里上传</div>
+                        <div class="uz-sub">支持 txt / md / csv / json / html / log / pdf，单文件最大 20MB。上传后同步解析和向量化。</div>
+                    </div>
+                    <input type="file" id="fileInput" multiple style="display:none;"
+                           accept=".txt,.md,.markdown,.csv,.json,.html,.htm,.log,.xml,.yml,.yaml,.pdf"/>
+                    <div class="upload-status" id="uploadStatus"></div>
+                    <div id="docList"></div>
+                </section>
+
+                <section class="tab-pane hidden" id="tab-search">
+                    <form class="search-bar" id="searchForm">
+                        <input id="searchInput" placeholder="输入一个问题或关键词，测试检索效果…" autocomplete="off"/>
+                        <select id="searchTopK">
+                            <option value="3">Top 3</option>
+                            <option value="5" selected>Top 5</option>
+                            <option value="10">Top 10</option>
+                            <option value="20">Top 20</option>
+                        </select>
+                        <button class="btn primary" type="submit" id="searchBtn">检索</button>
+                    </form>
+                    <div id="searchResults"><div class="muted" style="font-size:12px;">检索结果会按相似度从高到低显示。</div></div>
+                </section>
+
+                <section class="tab-pane hidden chat-pane" id="tab-chat">
+                    <div class="chat-messages" id="chatMessages">
+                        <div class="msg assistant">
+                            <div class="avatar">AI</div>
+                            <div class="bubble">
+                                <div class="who">知识库助手</div>
+                                <div class="text">我会先检索这个知识库，再基于命中的资料回答，并标注引用。试试问一个文档里有的问题。</div>
+                            </div>
+                        </div>
+                    </div>
+                    <form class="chat-input" id="chatForm">
+                        <textarea id="chatInput" placeholder="基于知识库提问…（Enter 发送，Shift+Enter 换行）"></textarea>
+                        <button class="btn primary" type="submit" id="chatBtn">发送</button>
+                    </form>
+                    <div class="chat-hint">回答仅依据检索到的资料，找不到时会明确说明。</div>
+                </section>
+            </div>
+        </main>
+    </div>
+</div>
+
+<!-- 知识库弹窗 -->
+<div class="overlay" id="kbOverlay">
+    <div class="modal">
+        <h3 id="kbModalTitle">新建知识库</h3>
+        <p class="modal-sub">切分参数影响检索粒度，默认值适用于大多数文档。</p>
+        <form id="kbForm">
+            <div class="field">
+                <label for="kbNameInput">名称 *</label>
+                <input id="kbNameInput" required placeholder="例如：产品手册" autocomplete="off"/>
+            </div>
+            <div class="field">
+                <label for="kbDescInput">描述</label>
+                <textarea id="kbDescInput" rows="2" placeholder="这个知识库放什么内容"></textarea>
+            </div>
+            <div class="field-row">
+                <div class="field">
+                    <label for="kbChunkSize">分块大小（字符）</label>
+                    <input id="kbChunkSize" type="number" min="100" max="4000" step="50" value="600"/>
+                </div>
+                <div class="field">
+                    <label for="kbOverlap">分块重叠（字符）</label>
+                    <input id="kbOverlap" type="number" min="0" max="2000" step="10" value="80"/>
+                </div>
+            </div>
+            <div class="form-error" id="kbError"></div>
+            <div class="modal-actions">
+                <button type="button" class="btn ghost" data-close="kbOverlay">取消</button>
+                <button type="submit" class="btn primary" id="kbSubmit">保存</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- 分块预览弹窗 -->
+<div class="overlay" id="chunkOverlay">
+    <div class="modal wide">
+        <h3 id="chunkTitle">分块预览</h3>
+        <p class="modal-sub" id="chunkSub"></p>
+        <div id="chunkList"></div>
+        <div class="modal-actions">
+            <button type="button" class="btn" data-close="chunkOverlay">关闭</button>
+        </div>
+    </div>
+</div>
+
+<div class="toast-wrap" id="toasts"></div>
+
+<script>
+const API = '/api/v1/platform/knowledge-bases';
+
+const state = {
+    list: [],
+    activeId: null,
+    docs: [],
+    tab: 'docs',
+    chat: [],
+    editingKb: null,
+    streaming: false
+};
+
+/* ---------------- 基础工具 ---------------- */
+
+async function api(path, options = {}) {
+    const { headers, ...rest } = options;
+    const res = await fetch(API + path, {
+        credentials: 'same-origin',
+        ...rest,
+        headers: { ...(headers || {}) }
+    });
+    if (res.status === 401 || res.status === 403) {
+        location.href = '/login.html';
+        throw new Error('登录已过期');
+    }
+    let body;
+    try { body = await res.json(); } catch (e) { throw new Error('响应解析失败 (HTTP ' + res.status + ')'); }
+    if (body.code !== 0) throw new Error(body.message || '请求失败');
+    return body.data;
+}
+
+function jsonOptions(method, data) {
+    return { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) };
+}
+
+function esc(value) {
+    return String(value == null ? '' : value)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function toast(message, type) {
+    const wrap = document.getElementById('toasts');
+    const el = document.createElement('div');
+    el.className = 'toast ' + (type || '');
+    el.textContent = message;
+    wrap.appendChild(el);
+    setTimeout(() => el.remove(), 4200);
+}
+
+function openOverlay(id) { document.getElementById(id).classList.add('show'); }
+function closeOverlay(id) { document.getElementById(id).classList.remove('show'); }
+
+function formatSize(bytes) {
+    if (bytes == null) return '-';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+}
+
+function formatTime(value) {
+    if (!value) return '-';
+    const date = new Date(value);
+    if (isNaN(date.getTime())) return '-';
+    return date.toLocaleString('zh-CN', { hour12: false });
+}
+
+/* ---------------- 知识库列表 ---------------- */
+
+async function loadKbs(selectId) {
+    state.list = await api('');
+    if (selectId != null) {
+        state.activeId = selectId;
+    } else if (state.activeId && !state.list.some((k) => k.id === state.activeId)) {
+        state.activeId = null;
+    }
+    if (state.activeId == null && state.list.length) {
+        state.activeId = state.list[0].id;
+    }
+    renderKbList();
+    if (state.activeId != null) {
+        await selectKb(state.activeId, false);
+    } else {
+        document.getElementById('kbMain').style.display = 'none';
+        document.getElementById('emptyMain').style.display = 'flex';
+    }
+}
+
+function renderKbList() {
+    const list = document.getElementById('kbList');
+    if (!state.list.length) {
+        list.innerHTML = '<div class="muted" style="font-size:12px;padding:8px;line-height:1.7;">还没有知识库，点击右上角 + 新建一个。</div>';
+        return;
+    }
+    list.innerHTML = state.list.map((kb) => {
+        const active = kb.id === state.activeId ? ' active' : '';
+        return '<div class="kb-item' + active + '" data-kb-id="' + kb.id + '">' +
+            '<div class="name">📚 ' + esc(kb.name) + '</div>' +
+            (kb.description ? '<div class="desc">' + esc(kb.description) + '</div>' : '') +
+            '<div class="stats"><span>' + kb.documentCount + ' 文档</span><span>' + kb.chunkCount + ' 分块</span></div>' +
+        '</div>';
+    }).join('');
+}
+
+document.getElementById('kbList').addEventListener('click', (event) => {
+    const item = event.target.closest('[data-kb-id]');
+    if (!item) return;
+    selectKb(Number(item.dataset.kbId), true);
+});
+
+async function selectKb(id, resetChat) {
+    state.activeId = id;
+    renderKbList();
+    const kb = state.list.find((k) => k.id === id);
+    if (!kb) return;
+    document.getElementById('emptyMain').style.display = 'none';
+    document.getElementById('kbMain').style.display = 'block';
+
+    document.getElementById('kbName').textContent = kb.name;
+    document.getElementById('kbDesc').textContent = kb.description || '暂无描述';
+    document.getElementById('kbDesc').style.display = kb.description ? 'block' : 'none';
+    document.getElementById('kbStats').textContent = kb.documentCount + ' 个文档 · ' + kb.chunkCount + ' 个分块';
+    const embedding = document.getElementById('kbEmbedding');
+    if (kb.embeddingRoute) {
+        embedding.textContent = 'EMBEDDING：' + kb.embeddingRoute;
+        embedding.className = 'pill ok';
+        embedding.onclick = null;
+        embedding.style.cursor = 'default';
+    } else {
+        embedding.textContent = '未配置 EMBEDDING 路由';
+        embedding.className = 'pill warn';
+        embedding.style.cursor = 'pointer';
+        embedding.title = '点击前往模型配置';
+        embedding.onclick = () => {
+            if (window.parent && typeof window.parent.switchTo === 'function') {
+                window.parent.switchTo('platform');
+            } else {
+                location.href = '/platform.html';
+            }
+        };
+    }
+    document.getElementById('kbChunkConfig').textContent =
+        '分块 ' + kb.chunkSize + ' / 重叠 ' + kb.chunkOverlap;
+
+    if (resetChat) {
+        state.chat = [];
+        document.getElementById('chatMessages').innerHTML = '';
+        renderChatEmpty();
+    }
+    switchTab('docs');
+    await loadDocs();
+}
+
+/* ---------------- 文档 ---------------- */
+
+async function loadDocs() {
+    if (state.activeId == null) return;
+    try {
+        state.docs = await api('/' + state.activeId + '/documents');
+    } catch (e) {
+        toast(e.message, 'err');
+        state.docs = [];
+    }
+    renderDocs();
+}
+
+function renderDocs() {
+    const box = document.getElementById('docList');
+    if (!state.docs.length) {
+        box.innerHTML = '<div class="muted" style="font-size:12px;text-align:center;padding:22px;">还没有文档，上传一个试试。</div>';
+        return;
+    }
+    const rows = state.docs.map((doc) => {
+        const canPreview = doc.status === 'READY';
+        return '<tr data-doc-id="' + doc.id + '">' +
+            '<td><div class="doc-name" title="' + esc(doc.name) + '">' + esc(doc.name) + '</div>' +
+                (doc.errorMsg ? '<div class="doc-error" title="' + esc(doc.errorMsg) + '">' + esc(doc.errorMsg) + '</div>' : '') +
+            '</td>' +
+            '<td><span class="status ' + esc(doc.status) + '">' + statusLabel(doc.status) + '</span></td>' +
+            '<td class="muted">' + doc.chunkCount + '</td>' +
+            '<td class="muted">' + formatSize(doc.size) + '</td>' +
+            '<td class="muted">' + formatTime(doc.createdAt) + '</td>' +
+            '<td style="text-align:right;white-space:nowrap;">' +
+                (canPreview ? '<button class="btn small ghost" data-act="chunks" data-id="' + doc.id + '" data-name="' + esc(doc.name) + '">分块</button> ' : '') +
+                '<button class="btn small ghost" data-act="reindex" data-id="' + doc.id + '">重建</button> ' +
+                '<button class="btn small danger" data-act="del" data-id="' + doc.id + '" data-name="' + esc(doc.name) + '">删除</button>' +
+            '</td>' +
+        '</tr>';
+    }).join('');
+    box.innerHTML = '<table class="doc-table"><thead><tr>' +
+        '<th>文件名</th><th>状态</th><th>分块</th><th>大小</th><th>上传时间</th><th></th>' +
+        '</tr></thead><tbody>' + rows + '</tbody></table>';
+}
+
+function statusLabel(status) {
+    if (status === 'READY') return '已就绪';
+    if (status === 'FAILED') return '失败';
+    if (status === 'PENDING') return '处理中';
+    return status || '-';
+}
+
+document.getElementById('docList').addEventListener('click', async (event) => {
+    const btn = event.target.closest('button[data-act]');
+    if (!btn) return;
+    const act = btn.dataset.act;
+    const docId = Number(btn.dataset.id);
+    const kbId = state.activeId;
+
+    if (act === 'chunks') {
+        try {
+            const chunks = await api('/' + kbId + '/documents/' + docId + '/chunks');
+            document.getElementById('chunkTitle').textContent = '分块预览 · ' + btn.dataset.name;
+            document.getElementById('chunkSub').textContent = '共 ' + chunks.length + ' 个分块';
+            document.getElementById('chunkList').innerHTML = chunks.length
+                ? chunks.map((c) => '<div class="chunk-item"><div class="ch">#' + c.seq +
+                    ' · ' + (c.tokenCount || 0) + ' tokens</div><div class="cc">' + esc(c.content) + '</div></div>').join('')
+                : '<div class="muted">没有分块</div>';
+            openOverlay('chunkOverlay');
+        } catch (e) { toast(e.message, 'err'); }
+        return;
+    }
+
+    if (act === 'reindex') {
+        btn.disabled = true;
+        try {
+            const doc = await api('/' + kbId + '/documents/' + docId + '/reindex', { method: 'POST' });
+            toast(doc.status === 'READY' ? '重建完成' : '重建失败：' + (doc.errorMsg || ''), doc.status === 'READY' ? 'ok' : 'err');
+            await loadDocs();
+            await loadKbs(state.activeId);
+        } catch (e) { toast(e.message, 'err'); }
+        finally { btn.disabled = false; }
+        return;
+    }
+
+    if (act === 'del') {
+        if (!confirm('删除文档「' + btn.dataset.name + '」及其分块和向量？')) return;
+        try {
+            await api('/' + kbId + '/documents/' + docId, { method: 'DELETE' });
+            toast('文档已删除', 'ok');
+            await loadDocs();
+            await loadKbs(state.activeId);
+        } catch (e) { toast(e.message, 'err'); }
+    }
+});
+
+/* ---------------- 上传 ---------------- */
+
+const uploadZone = document.getElementById('uploadZone');
+const fileInput = document.getElementById('fileInput');
+const uploadStatus = document.getElementById('uploadStatus');
+
+uploadZone.addEventListener('click', () => fileInput.click());
+uploadZone.addEventListener('dragover', (event) => {
+    event.preventDefault();
+    uploadZone.classList.add('drag');
+});
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag'));
+uploadZone.addEventListener('drop', (event) => {
+    event.preventDefault();
+    uploadZone.classList.remove('drag');
+    if (event.dataTransfer.files && event.dataTransfer.files.length) {
+        uploadFiles(Array.from(event.dataTransfer.files));
+    }
+});
+fileInput.addEventListener('change', () => {
+    if (fileInput.files.length) {
+        uploadFiles(Array.from(fileInput.files));
+        fileInput.value = '';
+    }
+});
+
+async function uploadFiles(files) {
+    if (state.activeId == null || !files.length) return;
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        uploadStatus.textContent = '正在上传并向量化 (' + (i + 1) + '/' + files.length + ')：' + file.name;
+        const form = new FormData();
+        form.append('file', file);
+        try {
+            const doc = await api('/' + state.activeId + '/documents', { method: 'POST', body: form });
+            if (doc.status === 'READY') {
+                toast('已入库：' + doc.name + '（' + doc.chunkCount + ' 个分块）', 'ok');
+            } else {
+                toast('处理失败：' + doc.name + ' · ' + (doc.errorMsg || '未知错误'), 'err');
+            }
+        } catch (e) {
+            toast('上传失败：' + file.name + ' · ' + e.message, 'err');
+        }
+    }
+    uploadStatus.textContent = '';
+    await loadDocs();
+    await loadKbs(state.activeId);
+}
+
+/* ---------------- 标签页 ---------------- */
+
+document.querySelectorAll('.tab-btn').forEach((btn) => {
+    btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+});
+
+function switchTab(tab) {
+    state.tab = tab;
+    document.querySelectorAll('.tab-btn').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
+    document.getElementById('tab-docs').classList.toggle('hidden', tab !== 'docs');
+    document.getElementById('tab-search').classList.toggle('hidden', tab !== 'search');
+    document.getElementById('tab-chat').classList.toggle('hidden', tab !== 'chat');
+    if (tab === 'chat') {
+        setTimeout(() => document.getElementById('chatInput').focus(), 50);
+    }
+}
+
+/* ---------------- 检索测试 ---------------- */
+
+document.getElementById('searchForm').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (state.activeId == null) return;
+    const query = document.getElementById('searchInput').value.trim();
+    if (!query) return;
+    const btn = document.getElementById('searchBtn');
+    const box = document.getElementById('searchResults');
+    btn.disabled = true; btn.textContent = '检索中…';
+    box.innerHTML = '<div class="muted" style="font-size:12px;">正在向量化查询并检索…</div>';
+    try {
+        const results = await api('/' + state.activeId + '/search', jsonOptions('POST', {
+            query,
+            topK: Number(document.getElementById('searchTopK').value)
+        }));
+        if (!results.length) {
+            box.innerHTML = '<div class="muted" style="font-size:12px;">没有命中任何分块。确认文档状态为「已就绪」，或换一个问法。</div>';
+        } else {
+            box.innerHTML = results.map((r, i) => '<div class="result-card">' +
+                '<div class="result-head"><span class="result-doc">[' + (i + 1) + '] ' + esc(r.documentName) + '</span>' +
+                '<span class="result-seq">片段 #' + r.seq + '</span>' +
+                '<span class="score">相似度 ' + r.score + '</span></div>' +
+                '<div class="result-content">' + esc(r.content) + '</div>' +
+            '</div>').join('');
+        }
+    } catch (e) {
+        box.innerHTML = '<div class="form-error show">' + esc(e.message) + '</div>';
+    } finally {
+        btn.disabled = false; btn.textContent = '检索';
+    }
+});
+
+/* ---------------- 知识问答 ---------------- */
+
+const chatMessages = document.getElementById('chatMessages');
+
+function renderChatEmpty() {
+    chatMessages.innerHTML = '<div class="msg assistant"><div class="avatar">AI</div>' +
+        '<div class="bubble"><div class="who">知识库助手</div>' +
+        '<div class="text">我会先检索这个知识库，再基于命中的资料回答，并标注引用。试试问一个文档里有的问题。</div>' +
+        '</div></div>';
+}
+
+function appendMessageDom(message) {
+    const wrap = document.createElement('div');
+    wrap.className = 'msg ' + message.role;
+    const who = message.role === 'user' ? '你' : '知识库助手';
+    wrap.innerHTML = '<div class="avatar">' + (message.role === 'user' ? '你' : 'AI') + '</div>' +
+        '<div class="bubble"><div class="who">' + who + '</div>' +
+        '<div class="citations"></div>' +
+        '<div class="text"></div>' +
+        '<div class="error-text" style="display:none;"></div></div>';
+    const citations = wrap.querySelector('.citations');
+    const text = wrap.querySelector('.text');
+    const error = wrap.querySelector('.error-text');
+    text.textContent = message.content || '';
+    if (message.streaming) text.classList.add('streaming');
+    renderCitations(citations, message.citations || []);
+    if (message.error) {
+        error.textContent = message.error;
+        error.style.display = 'block';
+    }
+    chatMessages.appendChild(wrap);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    return { wrap, text, error, citations };
+}
+
+function renderCitations(container, citations) {
+    if (!citations || !citations.length) {
+        container.innerHTML = '';
+        return;
+    }
+    container.innerHTML = citations.map((c, i) => '<div class="citation">' +
+        '<div class="c-head"><b>[' + (i + 1) + '] ' + esc(c.documentName) + '</b>' +
+        '<span>片段 #' + c.seq + '</span><span class="s">' + c.score + '</span></div>' +
+        '<div class="c-body">' + esc((c.content || '').slice(0, 160)) + (c.content && c.content.length > 160 ? '…' : '') + '</div>' +
+        (c.content && c.content.length > 160 ? '<details><summary>展开全文</summary><div class="c-body" style="max-height:none;margin-top:6px;">' + esc(c.content) + '</div></details>' : '') +
+    '</div>').join('');
+}
+
+document.getElementById('chatForm').addEventListener('submit', (event) => {
+    event.preventDefault();
+    sendChat();
+});
+
+document.getElementById('chatInput').addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        sendChat();
+    }
+});
+
+async function sendChat() {
+    if (state.streaming || state.activeId == null) return;
+    const input = document.getElementById('chatInput');
+    const question = input.value.trim();
+    if (!question) return;
+    input.value = '';
+    state.streaming = true;
+    document.getElementById('chatBtn').disabled = true;
+
+    if (!state.chat.length && chatMessages.querySelector('.msg.assistant .text') &&
+            chatMessages.querySelectorAll('.msg').length === 1) {
+        chatMessages.innerHTML = '';
+    }
+
+    state.chat.push({ role: 'user', content: question });
+    appendMessageDom({ role: 'user', content: question });
+
+    const assistant = { role: 'assistant', content: '', citations: [], streaming: true, error: null };
+    state.chat.push(assistant);
+    const dom = appendMessageDom(assistant);
+
+    try {
+        const res = await fetch(API + '/' + state.activeId + '/chat/stream', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ messages: state.chat.slice(0, -1).map((m) => ({ role: m.role, content: m.content })) })
+        });
+        if (res.status === 401 || res.status === 403) { location.href = '/login.html'; return; }
+        if (!res.ok) {
+            let message = 'HTTP ' + res.status;
+            try {
+                const body = await res.json();
+                message = body.message || message;
+            } catch (e) { /* ignore */ }
+            throw new Error(message);
+        }
+        if (!res.body) throw new Error('当前浏览器不支持流式响应');
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let buffer = '';
+        let finished = false;
+
+        while (!finished) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            buffer = buffer.replace(/\r\n/g, '\n');
+            let index;
+            while ((index = buffer.indexOf('\n\n')) >= 0) {
+                const raw = buffer.slice(0, index);
+                buffer = buffer.slice(index + 2);
+                const event = parseSse(raw);
+                if (!event) continue;
+                if (event.name === 'citations') {
+                    try { assistant.citations = JSON.parse(event.data); } catch (e) { assistant.citations = []; }
+                    renderCitations(dom.citations, assistant.citations);
+                } else if (event.name === 'delta') {
+                    assistant.content += event.data;
+                    dom.text.textContent = assistant.content;
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                } else if (event.name === 'error') {
+                    assistant.error = event.data;
+                    dom.error.textContent = event.data;
+                    dom.error.style.display = 'block';
+                } else if (event.name === 'done') {
+                    finished = true;
+                }
+            }
+        }
+        if (!assistant.content && !assistant.error) {
+            assistant.error = '模型没有返回内容';
+            dom.error.textContent = assistant.error;
+            dom.error.style.display = 'block';
+        }
+    } catch (e) {
+        assistant.error = e.message;
+        dom.error.textContent = e.message;
+        dom.error.style.display = 'block';
+        toast('问答失败：' + e.message, 'err');
+    } finally {
+        assistant.streaming = false;
+        dom.text.classList.remove('streaming');
+        state.streaming = false;
+        document.getElementById('chatBtn').disabled = false;
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+}
+
+function parseSse(raw) {
+    let name = 'message';
+    const dataLines = [];
+    raw.split('\n').forEach((line) => {
+        if (line.startsWith('event:')) {
+            name = line.slice(6).trim();
+        } else if (line.startsWith('data:')) {
+            dataLines.push(line.slice(5).replace(/^ /, ''));
+        }
+    });
+    if (!dataLines.length) return null;
+    return { name, data: dataLines.join('\n') };
+}
+
+/* ---------------- 知识库增删改 ---------------- */
+
+function openKbModal(editing) {
+    state.editingKb = editing || null;
+    document.getElementById('kbModalTitle').textContent = editing ? '编辑知识库' : '新建知识库';
+    document.getElementById('kbNameInput').value = editing ? editing.name : '';
+    document.getElementById('kbDescInput').value = editing ? (editing.description || '') : '';
+    document.getElementById('kbChunkSize').value = editing ? editing.chunkSize : 600;
+    document.getElementById('kbOverlap').value = editing ? editing.chunkOverlap : 80;
+    document.getElementById('kbError').classList.remove('show');
+    openOverlay('kbOverlay');
+    setTimeout(() => document.getElementById('kbNameInput').focus(), 50);
+}
+
+document.getElementById('btnNewKb').addEventListener('click', () => openKbModal(null));
+document.getElementById('btnNewKb2').addEventListener('click', () => openKbModal(null));
+document.getElementById('btnEditKb').addEventListener('click', () => {
+    const kb = state.list.find((k) => k.id === state.activeId);
+    if (kb) openKbModal(kb);
+});
+
+document.getElementById('kbForm').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const submit = document.getElementById('kbSubmit');
+    const errorBox = document.getElementById('kbError');
+    const payload = {
+        name: document.getElementById('kbNameInput').value.trim(),
+        description: document.getElementById('kbDescInput').value.trim(),
+        chunkSize: Number(document.getElementById('kbChunkSize').value) || 600,
+        chunkOverlap: Number(document.getElementById('kbOverlap').value) || 0
+    };
+    submit.disabled = true; submit.textContent = '保存中…';
+    try {
+        let saved;
+        if (state.editingKb) {
+            saved = await api('/' + state.editingKb.id, jsonOptions('PUT', payload));
+            toast('知识库已更新', 'ok');
+        } else {
+            saved = await api('', jsonOptions('POST', payload));
+            toast('知识库已创建', 'ok');
+        }
+        closeOverlay('kbOverlay');
+        await loadKbs(saved.id);
+    } catch (e) {
+        errorBox.textContent = e.message;
+        errorBox.classList.add('show');
+    } finally {
+        submit.disabled = false; submit.textContent = '保存';
+    }
+});
+
+document.getElementById('btnDelKb').addEventListener('click', async () => {
+    const kb = state.list.find((k) => k.id === state.activeId);
+    if (!kb) return;
+    if (!confirm('删除知识库「' + kb.name + '」？其中的文档、分块和向量都会删除，无法恢复。')) return;
+    try {
+        await api('/' + kb.id, { method: 'DELETE' });
+        toast('知识库已删除', 'ok');
+        state.activeId = null;
+        state.chat = [];
+        await loadKbs(null);
+    } catch (e) {
+        toast(e.message, 'err');
+    }
+});
+
+/* ---------------- 弹窗关闭 ---------------- */
+
+document.querySelectorAll('[data-close]').forEach((btn) => {
+    btn.addEventListener('click', () => closeOverlay(btn.dataset.close));
+});
+document.querySelectorAll('.overlay').forEach((overlay) => {
+    overlay.addEventListener('click', (event) => {
+        if (event.target === overlay) overlay.classList.remove('show');
+    });
+});
+document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+        document.querySelectorAll('.overlay.show').forEach((o) => o.classList.remove('show'));
+    }
+});
+
+/* ---------------- 启动 ---------------- */
+
+loadKbs(null).catch((e) => {
+    document.getElementById('kbList').innerHTML = '<div class="form-error show">' + esc(e.message) + '</div>';
+});
+</script>
+</body>
+</html>

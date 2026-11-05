@@ -268,6 +268,14 @@
                 <span class="label">票房数据</span>
                 <span class="badge">实时</span>
             </button>
+            <button type="button" class="nav-item" data-target="kb">
+                <span class="icon">📚</span>
+                <span class="label">知识库</span>
+            </button>
+            <button type="button" class="nav-item" data-target="platform">
+                <span class="icon">⚙️</span>
+                <span class="label">模型配置</span>
+            </button>
         </div>
 
         <div class="sidebar-footer">
@@ -306,7 +314,9 @@ const logoutBtn = document.getElementById('logoutBtn');
 
 const PAGES = {
     chat: { title: 'AI 对话', url: '/chat.html' },
-    boxoffice: { title: '票房数据', url: '/boxoffice.html' }
+    boxoffice: { title: '票房数据', url: '/boxoffice.html' },
+    kb: { title: '知识库', url: '/kb.html' },
+    platform: { title: '模型配置', url: '/platform.html' }
 };
 
 function switchTo(target) {
