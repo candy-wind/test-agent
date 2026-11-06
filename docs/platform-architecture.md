@@ -239,7 +239,7 @@ flowchart LR
 | --- | --- | --- | --- |
 | PROMPT | SKILL.md + 参考资料 | 拼接进系统提示，不执行代码 | 角色设定、写作规范、领域知识 |
 | TOOL | 参数 Schema + Java 实现 | 注册为 Spring AI `ToolCallback` | 票房查询、网页搜索、HTTP 调用 |
-| PACKAGE（Phase 4） | SKILL.md + scripts + assets | 受限沙箱中执行 | 兼容现有 `.codebuddy/skills` 打包格式 |
+| PACKAGE（Phase 4） | SKILL.md + scripts + assets | 受限沙箱中执行 | 兼容常见 skills 打包格式 |
 
 - 注册来源：内置（代码注册、只读）+ 空间自建（DB 管理）。
 - 版本不可变，可按版本回滚；对话引用具体版本，保证可复现。

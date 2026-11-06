@@ -3,6 +3,7 @@ logs/
 uploads/
 data/
 .idea/
+.codebuddy/
 *.iml
 .DS_Store
 .env

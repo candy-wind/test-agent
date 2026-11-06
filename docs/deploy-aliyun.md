@@ -85,47 +85,71 @@ sudo systemctl restart docker
 
 ---
 
-## 4. 获取代码并配置
+## 4. 一键部署（拉取代码 + 构建 + 启动）
+
+服务器上不需要提前 clone，直接执行：
 
 ```bash
-git clone https://github.com/candy-wind/test-agent.git
-cd test-agent
-chmod +x deploy.sh
+curl -fsSL https://raw.githubusercontent.com/candy-wind/test-agent/master/deploy.sh | bash
 ```
 
-推荐直接运行一次 `./deploy.sh`：它会创建 `.env` 并自动生成随机 `APP_SECRET_KEY`，然后提示你先改数据库密码。
-
-编辑 `.env`：
+不放心管道执行的话，先下载再运行：
 
 ```bash
-vim .env
+curl -fsSL -o deploy.sh https://raw.githubusercontent.com/candy-wind/test-agent/master/deploy.sh
+less deploy.sh
+bash deploy.sh
 ```
 
-必须修改的项：
+> 以上命令要求仓库是公开的。如果改成私有仓库，先在服务器配置 GitHub 凭据，或改用 `git clone` 后进入目录执行 `./deploy.sh`。
 
-- `DB_PASSWORD`：换成强密码。
-- `APP_SECRET_KEY`：脚本已随机生成，**保持不动并额外备份一份**。它用于加密数据库里的模型 Key 和票房 Key，换了之后这些 Key 全部解不开。
-- `APP_PORT`：默认 8080；如果前面挂 Nginx，可保持默认并让 Nginx 反代。
+脚本会依次完成：
+
+1. 把仓库克隆到 `~/test-agent`；已存在则 `git fetch` 并强制对齐到 `origin/master`
+2. 检查 Docker / Compose 插件，当前用户无权限时自动改用 sudo
+3. 首次运行自动生成 `.env`：随机数据库密码 + 随机 `APP_SECRET_KEY`
+4. 创建 `/mnt/logs/test-agent`、`/mnt/test-agent/{kb,uploads}` 并设置 uid 10001
+5. 执行 `docker compose -f docker-compose.prod.yml up -d --build`
+6. 轮询健康检查，失败时自动打印应用日志
+
+可选环境变量：
+
+| 变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `DEPLOY_DIR` | `~/test-agent` | 代码目录 |
+| `GIT_REPO` | GitHub 仓库 | GitHub 访问不了时换成镜像地址 |
+| `GIT_BRANCH` | `master` | 分支 |
+| `APP_IMAGE` | 空 | 填写 ACR 镜像地址则拉取镜像，不在服务器构建 |
+
+例如放到 `/opt`（需要先给当前用户写权限）：
+
+```bash
+sudo mkdir -p /opt/test-agent && sudo chown "$USER" /opt/test-agent
+DEPLOY_DIR=/opt/test-agent bash deploy.sh
+```
+
+> 首次部署完成后，务必把 `.env` 备份到本地。里面的 `APP_SECRET_KEY` 一旦更换，数据库里已保存的模型 Key、票房 Key 将全部无法解密。
+>
+> 想自己指定数据库密码时，先在代码目录把 `.env.example` 复制为 `.env` 并改好 `DB_PASSWORD`，再执行 `./deploy.sh`；脚本不会覆盖已有值。
 
 ---
 
-## 5. 启动
+## 5. 访问与更新
+
+部署成功后：
+
+- 访问 `http://<公网IP>:8080`
+- 应用日志：`docker compose -f docker-compose.prod.yml logs -f app`，或文件日志 `tail -f /mnt/logs/test-agent/app.log`
+- 登录账号仍为 `admin / admin123`（`application.yml` 中的演示配置，上线前建议改掉）
+
+以后改了代码并 push 到 GitHub，服务器上只需要：
 
 ```bash
+cd ~/test-agent
 ./deploy.sh
 ```
 
-等价于手动执行：
-
-```bash
-docker compose -f docker-compose.prod.yml up -d --build
-```
-
-首次构建要在容器里下载 Maven 依赖，耗时几分钟。启动后：
-
-- 访问 `http://<公网IP>:8080`
-- 日志 `tail -f /mnt/logs/test-agent/app.log`
-- 登录账号仍为 `admin / admin123`（`application.yml` 中的演示配置，上线前建议改掉）
+脚本会先同步到最新 `master`，再重建镜像并重启；数据库数据卷和 `.env` 都会保留。如果服务器上的代码目录有未提交改动，脚本会拒绝更新，先 `git status` 处理后再执行。
 
 ### 安全组
 
@@ -220,9 +244,8 @@ docker compose -f docker-compose.prod.yml logs -f app
 # 文件日志
 tail -f /mnt/logs/test-agent/app.log
 
-# 更新代码后重启
-git pull
-docker compose -f docker-compose.prod.yml up -d --build
+# 更新代码并重启（自动 git fetch + 重建 + 健康检查）
+cd ~/test-agent && ./deploy.sh
 
 # 停止（保留数据卷）
 docker compose -f docker-compose.prod.yml down
@@ -254,6 +277,18 @@ sudo chown -R 10001:10001 /mnt/logs/test-agent /mnt/test-agent
 
 **应用一直 unhealthy**
 先看 `docker compose -f docker-compose.prod.yml logs app`。常见原因：数据库密码与已有 `pgdata` 不一致（旧数据卷里还是老密码）、`APP_SECRET_KEY` 未设置。
+
+**克隆代码失败（连接 GitHub 超时）**
+服务器访问 GitHub 不稳定时，可在本地把仓库传到服务器，或指定镜像地址：
+
+```bash
+GIT_REPO=https://gitee.com/<你的镜像>/test-agent.git bash deploy.sh
+```
+
+也可以本地 `scp` 整个目录到服务器后进入目录执行 `./deploy.sh`。
+
+**脚本提示“代码目录存在未提交的改动”**
+服务器上的代码被手动改过。先 `cd ~/test-agent && git status` 确认，确实不需要的改动执行 `git checkout -- .` 丢弃后再运行脚本。
 
 **更换 APP_SECRET_KEY 后页面提示 Key 解密失败**
 说明数据库里存的是用旧密钥加密的密文。要么改回旧密钥，要么在「模型配置」页面重新填写所有 API Key。
