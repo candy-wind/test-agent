@@ -2,6 +2,8 @@
 
 本文说明如何在本地启动、停止 test-agent，以及常见问题的处理。
 
+> 部署到阿里云 ECS（Linux）请使用容器化方案，见 [deploy-aliyun.md](deploy-aliyun.md)；本文的 PowerShell 脚本仅适用于 Windows。
+
 ---
 
 ## 1. 前置条件

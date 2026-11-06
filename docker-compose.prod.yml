@@ -1,0 +1,69 @@
+# 生产环境（阿里云 ECS）：应用 + PostgreSQL 全部容器化
+#
+# 用法：
+#   cp .env.example .env   # 首次，修改 DB_PASSWORD 并保留自动生成的 APP_SECRET_KEY
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# 注意：不要再同时启动仓库根目录的开发用 docker-compose.yml，
+#       两者使用相同的容器名 5432 端口，会互相冲突。
+
+name: test-agent-prod
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: test-agent-pg
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-test_agent}
+      POSTGRES_USER: ${DB_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?请在 .env 中设置 DB_PASSWORD}
+      TZ: Asia/Shanghai
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - app-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-postgres} -d ${DB_NAME:-test_agent}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: test-agent:1.0.0
+    container_name: test-agent-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-test_agent}
+      DB_USERNAME: ${DB_USERNAME:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:?请在 .env 中设置 DB_PASSWORD}
+      APP_SECRET_KEY: ${APP_SECRET_KEY:?请在 .env 中设置 APP_SECRET_KEY}
+      LOG_DIR: /mnt/logs
+      LOG_SERVICE_NAME: ${LOG_SERVICE_NAME:-test-agent}
+      KB_STORAGE_DIR: /app/data/kb
+      UPLOAD_DIR: /app/uploads
+      TZ: Asia/Shanghai
+      JAVA_OPTS: ${JAVA_OPTS:--XX:MaxRAMPercentage=75.0 -Duser.timezone=Asia/Shanghai}
+    volumes:
+      # 日志落在数据盘 /mnt/logs/<服务名>/app.log
+      - /mnt/logs:/mnt/logs
+      # 知识库原文件、上传文件也放数据盘，避免撑爆系统盘
+      - /mnt/test-agent/kb:/app/data/kb
+      - /mnt/test-agent/uploads:/app/uploads
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    networks:
+      - app-net
+
+volumes:
+  pgdata:
+
+networks:
+  app-net:
+    driver: bridge
