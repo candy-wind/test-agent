@@ -169,12 +169,17 @@ $env:DB_PASSWORD = "你的密码"
 | `DB_USERNAME` / `DB_PASSWORD` | 数据库账号密码（`postgres` / `postgres`） |
 | `APP_SECRET_KEY` | 模型 API Key 的加密密钥（**生产必须设置**，默认 `dev-only-change-me`） |
 | `KB_STORAGE_DIR` | 知识库上传文件目录（`./data/kb`） |
+| `KB_VECTORIZATION_ENABLED` | 是否启用知识库向量化（默认 `false`） |
+| `APIZERO_API_KEY` | 极数本源票房接口的 API Key（匿名额度用尽后必须配置） |
+
+> 模型供应商、模型和 API Key 不再写在 `application.yml` 里，统一在「模型配置」页面维护；Key 使用 `APP_SECRET_KEY` 加密后存入数据库。票房数据源的 API Key 也在同一页面的「外部数据源」区域保存，优先于 `APIZERO_API_KEY` 环境变量。
 
 知识库相关参数（`platform.knowledge.*`）：
 
 | 参数 | 默认值 | 说明 |
 | --- | --- | --- |
-| `embedding-dimension` | 1024 | 必须与 `kb_embedding` 的 `vector(1024)` 一致 |
+| `vectorization-enabled` | false | 关闭时上传只做解析/切分，检索走关键词匹配 |
+| `embedding-dimension` | 1024 | 启用向量化时必须与 `kb_embedding` 的 `vector(1024)` 一致 |
 | `embedding-batch-size` | 16 | 向量化批大小 |
 | `default-top-k` / `max-top-k` | 5 / 20 | 检索返回条数 |
 | `max-context-chars` | 8000 | 拼入提示词的检索内容上限 |
@@ -295,13 +300,17 @@ docker compose down -v
 docker compose up -d
 ```
 
-### 知识库上传/检索报“未配置 EMBEDDING 模型”
+### 知识库上传/检索提示“未配置 EMBEDDING 模型”
 
-知识库依赖向量模型。请先在 **模型配置** 页面：
+默认 `platform.knowledge.vectorization-enabled=false`，知识库使用关键词检索，上传文档不需要 embedding 模型，也不会调用向量化接口。
 
-1. 添加供应商（OpenAI 兼容接口，含 `baseUrl` 与 `apiKey`）
-2. 添加模型，能力勾选 `EMBEDDING`
+如果需要语义检索，再按以下步骤启用：
+
+1. 在 **模型配置** 添加供应商（OpenAI 兼容接口，含 `baseUrl` 与 `apiKey`）
+2. 添加模型，能力勾选 `EMBEDDING`，并确保输出 1024 维
 3. 在“用途路由”中把 `EMBEDDING` 指向该模型
+4. 设置 `KB_VECTORIZATION_ENABLED=true` 后重启应用
+5. 对已有文档执行“重建”，写入向量
 
 ### 向量维度不一致
 

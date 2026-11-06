@@ -2,10 +2,12 @@ package vip.mate.agent.service.provider;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import vip.mate.agent.dto.BoxOfficeData;
 import vip.mate.agent.dto.BoxOfficeMovie;
+import vip.mate.agent.platform.settings.BoxOfficeSettingsService;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -17,16 +19,22 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * 公开票房数据源:极数本源 movie-box(数据来源猫眼专业版,60 秒缓存,匿名可调)。
+ * 票房数据源:极数本源 movie-box(数据来源猫眼专业版,60 秒缓存)。
+ * API Key 在「模型配置 > 外部数据源」页面维护,加密存入 sys_config,
+ * 通过请求头 X-API-KEY 传递;未配置时兼容环境变量 APIZERO_API_KEY。
  * 返回当日票房 Top10,字段:name/total_box/box_office/box_rate/show_rate/seat_rate/release_days。
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class ApizeroBoxOfficeProvider implements BoxOfficeProvider {
 
     private static final String API_URL = "https://v1.apizero.cn/api/movie-box";
     private static final String UA =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36";
+
+    /** API Key 由「模型配置」页面的外部数据源区域维护，加密存库 */
+    private final BoxOfficeSettingsService settingsService;
 
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(5))
@@ -47,7 +55,14 @@ public class ApizeroBoxOfficeProvider implements BoxOfficeProvider {
                 .sourceUrl(API_URL)
                 .list(Collections.emptyList());
         try {
-            JsonNode data = fetchData();
+            JsonNode root = fetchData();
+            int code = root.path("code").asInt(0);
+            if (code != 0) {
+                String msg = root.path("msg").asText("未知错误");
+                log.warn("[boxoffice] 极数本源返回错误: code={}, msg={}", code, msg);
+                return builder.updateInfo("数据源异常：" + truncate(msg, 80)).build();
+            }
+            JsonNode data = root.path("data");
             JsonNode listNode = data.path("list");
             if (!listNode.isArray()) {
                 return builder.build();
@@ -65,19 +80,38 @@ public class ApizeroBoxOfficeProvider implements BoxOfficeProvider {
                     .build();
         } catch (Exception e) {
             log.error("获取实时票房(apizero)失败", e);
-            return builder.build();
+            return builder.updateInfo("数据源异常：" + truncate(messageOf(e), 80)).build();
         }
     }
 
     private JsonNode fetchData() throws Exception {
-        HttpRequest req = HttpRequest.newBuilder()
+        HttpRequest.Builder builder = HttpRequest.newBuilder()
                 .uri(URI.create(API_URL))
                 .timeout(Duration.ofSeconds(8))
                 .header("User-Agent", UA)
-                .GET()
-                .build();
-        HttpResponse<String> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
-        return mapper.readTree(resp.body()).path("data");
+                .header("Accept", "application/json")
+                .GET();
+        String apiKey = settingsService.resolveApiKey();
+        if (apiKey != null && !apiKey.isBlank()) {
+            builder.header("X-API-KEY", apiKey.trim());
+        }
+        HttpResponse<String> resp = httpClient.send(
+                builder.build(), HttpResponse.BodyHandlers.ofString());
+        if (resp.statusCode() < 200 || resp.statusCode() >= 300) {
+            log.warn("[boxoffice] 极数本源 HTTP {}: {}", resp.statusCode(), truncate(resp.body(), 300));
+        }
+        return mapper.readTree(resp.body());
+    }
+
+    private static String messageOf(Exception e) {
+        return e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+    }
+
+    private static String truncate(String text, int max) {
+        if (text == null) {
+            return "";
+        }
+        return text.length() <= max ? text : text.substring(0, max) + "…";
     }
 
     private BoxOfficeMovie toMovie(JsonNode item) {

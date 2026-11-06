@@ -44,20 +44,9 @@ logging:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %highlight(%-5level) [%thread] %cyan(%logger{36}) - %msg%n"
     file: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n"
 
+# 模型供应商、模型与 API Key 统一在「模型配置」页面维护（写入数据库并通过 APP_SECRET_KEY 加密），
+# 这里不再保留任何模型 Key。
 agent:
-  default-provider: deepseek
-  providers:
-    deepseek:
-      base-url: https://api.deepseek.com
-      api-key: 你的apikey
-      chat-model: deepseek-chat
-      reasoner-model: deepseek-reasoner
-    qwen:
-      base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
-      api-key: sk-your-qwen-api-key
-      chat-model: qwen-plus
-      vision-model: qwen-vl-max
-      reasoner-model: qwen-max
   search:
     enabled: true
     max-results: 5
@@ -66,11 +55,14 @@ upload:
   dir: ./uploads
 
 # 票房数据源
-#  apizero: 公开源(极数本源 movie-box,数据来源猫眼专业版,匿名可调,免登录)
+#  apizero: 公开源(极数本源 movie-box,数据来源猫眼专业版)
+#          匿名试用额度用尽后必须配置 API Key(https://apizero.cn 注册获取)
 #  maoyan : 猫眼专业版官方接口(需 signKey/mygsig 签名,可能被风控拦截,可配置登录 Cookie)
 boxoffice:
   provider: apizero
   refresh-interval-ms: 60000   # 定时刷新数据源缓存间隔(毫秒),默认 60 秒
+  apizero:
+    api-key: ${APIZERO_API_KEY:}   # 兜底配置；推荐在「模型配置 > 外部数据源」页面保存（加密存库，优先生效）
   maoyan:
     cookie: ""   # 可选:浏览器登录猫眼专业版后复制的完整 Cookie
 
@@ -83,10 +75,12 @@ auth:
 # 平台基础配置（P0）
 platform:
   bootstrap:
-    enabled: true          # 首次启动自动初始化管理员/默认空间，并从 agent.providers 种子供应商
+    enabled: true          # 首次启动自动初始化管理员/默认空间（模型配置请在页面添加）
   # 用于加密数据库中的模型 API Key，生产环境必须通过 APP_SECRET_KEY 覆盖
   secret-key: ${APP_SECRET_KEY:dev-only-change-me}
   knowledge:
+    # 是否启用向量化。false 时上传只做解析/切分，检索使用关键词匹配，不依赖 embedding 模型
+    vectorization-enabled: ${KB_VECTORIZATION_ENABLED:false}
     # 与 kb_embedding.embedding 的 vector(1024) 保持一致；换模型维度时需要修改迁移脚本
     embedding-dimension: 1024
     embedding-batch-size: 16

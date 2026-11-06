@@ -24,10 +24,14 @@ import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HexFormat;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.NoSuchElementException;
+import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * 知识库主流程：知识库/文档管理、解析切分、向量化、检索。
@@ -58,6 +62,20 @@ public class KnowledgeBaseService {
 
     @Value("${platform.knowledge.max-context-chars:8000}")
     private int maxContextChars;
+
+    @Value("${platform.knowledge.vectorization-enabled:false}")
+    private boolean vectorizationEnabled;
+
+    /** 英文/数字关键词，如 mysql、spring、java8（不含 LIKE 通配符 _ %） */
+    private static final Pattern ASCII_TERM = Pattern.compile("\\p{Alnum}{2,}");
+    /** 连续汉字短语 */
+    private static final Pattern HAN_RUN = Pattern.compile("\\p{IsHan}{2,}");
+    /** 疑问/口语化片段，不作为检索关键词 */
+    private static final Set<String> QUESTION_WORDS = Set.of(
+            "什么", "怎么", "如何", "哪些", "哪个", "是否", "可以", "能否", "主要",
+            "介绍", "一下", "这个", "那个", "一个", "我们", "你们", "他们", "它们",
+            "的是", "是什", "么是", "有什", "为什", "区别", "作用", "用法");
+    private static final int MAX_KEYWORD_TERMS = 16;
 
     // ==================== 知识库 ====================
 
@@ -118,7 +136,7 @@ public class KnowledgeBaseService {
     }
 
     /**
-     * 上传并同步完成解析、切分、向量化。失败时文档保留为 FAILED，并记录原因。
+     * 上传并同步完成解析、切分；启用向量化时再写入向量。失败时文档保留为 FAILED，并记录原因。
      */
     public DocumentView upload(Long kbId, MultipartFile file) {
         KbKnowledgeBase kb = requireKb(kbId);
@@ -170,16 +188,21 @@ public class KnowledgeBaseService {
             }
             chunks = chunkRepository.saveAll(chunks);
 
-            long start = System.currentTimeMillis();
-            List<float[]> vectors = embeddingClient.embed(
-                    chunks.stream().map(KbChunk::getContent).toList());
-            for (int i = 0; i < chunks.size(); i++) {
-                vectorStore.upsert(chunks.get(i).getId(), vectors.get(i));
+            if (vectorizationEnabled) {
+                long start = System.currentTimeMillis();
+                List<float[]> vectors = embeddingClient.embed(
+                        chunks.stream().map(KbChunk::getContent).toList());
+                for (int i = 0; i < chunks.size(); i++) {
+                    vectorStore.upsert(chunks.get(i).getId(), vectors.get(i));
+                }
+                log.info("[kb] 文档向量化完成: kb={} doc={} chunks={} cost={}ms",
+                        kb.getId(), document.getId(), chunks.size(), System.currentTimeMillis() - start);
+            } else {
+                log.info("[kb] 已跳过向量化（关键词检索模式）: kb={} doc={} chunks={}",
+                        kb.getId(), document.getId(), chunks.size());
             }
             document.setStatus(KbDocument.STATUS_READY);
             document.setErrorMsg(null);
-            log.info("[kb] 文档向量化完成: kb={} doc={} chunks={} cost={}ms",
-                    kb.getId(), document.getId(), chunks.size(), System.currentTimeMillis() - start);
         } catch (Exception e) {
             document.setStatus(KbDocument.STATUS_FAILED);
             document.setErrorMsg(truncate(messageOf(e), 1000));
@@ -221,6 +244,12 @@ public class KnowledgeBaseService {
         if (chunks.isEmpty()) {
             throw new IllegalArgumentException("该文档没有可重建的分块，请删除后重新上传");
         }
+        if (!vectorizationEnabled) {
+            document.setStatus(KbDocument.STATUS_READY);
+            document.setErrorMsg(null);
+            log.info("[kb] 向量化已关闭，重建仅校验分块: doc={} chunks={}", documentId, chunks.size());
+            return toView(documentRepository.save(document));
+        }
         try {
             vectorStore.deleteByDocument(documentId);
             List<float[]> vectors = embeddingClient.embed(
@@ -245,11 +274,53 @@ public class KnowledgeBaseService {
             throw new IllegalArgumentException("检索内容不能为空");
         }
         int limit = topK == null ? defaultTopK : Math.max(1, Math.min(topK, maxTopK));
+        if (!vectorizationEnabled) {
+            return keywordSearch(kbId, query.trim(), limit);
+        }
         float[] queryVector = embeddingClient.embedOne(query.trim());
         return vectorStore.search(kbId, queryVector, limit).stream()
                 .map(c -> new SearchResult(c.chunkId(), c.documentId(), c.documentName(),
                         c.seq(), c.content(), round(c.score())))
                 .toList();
+    }
+
+    private List<SearchResult> keywordSearch(Long kbId, String query, int limit) {
+        String terms = String.join("|", extractKeywordTerms(query));
+        return chunkRepository.keywordSearch(kbId, terms, limit).stream()
+                .map(row -> new SearchResult(
+                        ((Number) row[0]).longValue(),
+                        ((Number) row[1]).longValue(),
+                        (String) row[2],
+                        ((Number) row[3]).intValue(),
+                        (String) row[4],
+                        0d))
+                .toList();
+    }
+
+    /**
+     * 从自然语言问题里抽取检索关键词：英文/数字整词 + 汉字双字词。
+     * 例如“mysql主要什么” → [mysql, 要什]，避免整句 LIKE 几乎匹配不到内容。
+     */
+    private List<String> extractKeywordTerms(String query) {
+        LinkedHashSet<String> terms = new LinkedHashSet<>();
+        Matcher ascii = ASCII_TERM.matcher(query);
+        while (ascii.find() && terms.size() < MAX_KEYWORD_TERMS) {
+            terms.add(ascii.group());
+        }
+        Matcher han = HAN_RUN.matcher(query);
+        while (han.find() && terms.size() < MAX_KEYWORD_TERMS) {
+            String run = han.group();
+            for (int i = 0; i + 2 <= run.length() && terms.size() < MAX_KEYWORD_TERMS; i++) {
+                String bigram = run.substring(i, i + 2);
+                if (!QUESTION_WORDS.contains(bigram)) {
+                    terms.add(bigram);
+                }
+            }
+        }
+        if (terms.isEmpty()) {
+            terms.add(query);
+        }
+        return new ArrayList<>(terms);
     }
 
     /**
@@ -268,8 +339,9 @@ public class KnowledgeBaseService {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < results.size(); i++) {
             SearchResult r = results.get(i);
+            String match = vectorizationEnabled ? "相似度 " + r.score() : "关键词命中";
             String block = "\n[资料" + (i + 1) + "] 文档：" + r.documentName()
-                    + "（片段 #" + r.seq() + "，相似度 " + r.score() + "）\n"
+                    + "（片段 #" + r.seq() + "，" + match + "）\n"
                     + r.content() + "\n";
             if (sb.length() + block.length() > maxContextChars) {
                 break;
@@ -305,6 +377,9 @@ public class KnowledgeBaseService {
     }
 
     private String embeddingRouteText() {
+        if (!vectorizationEnabled) {
+            return null;
+        }
         try {
             ModelEndpoint endpoint = modelConfigService.resolveEndpoint("EMBEDDING");
             return endpoint == null ? null : endpoint.providerName() + " / " + endpoint.modelKey();
@@ -322,6 +397,7 @@ public class KnowledgeBaseService {
                 kb.getChunkOverlap(),
                 documentRepository.countByKbId(kb.getId()),
                 chunkRepository.countByKbId(kb.getId()),
+                vectorizationEnabled,
                 embeddingRoute,
                 kb.getCreatedAt());
     }

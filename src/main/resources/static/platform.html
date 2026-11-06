@@ -179,7 +179,7 @@
     <div class="page-head">
         <div>
             <h1>模型配置</h1>
-            <p>管理 OpenAI 兼容的模型供应商、模型清单和全局用途路由。配置会写入数据库，对话时优先使用这里启用的 CHAT 路由；未配置时回退到 application.yml。</p>
+            <p>管理 OpenAI 兼容的模型供应商、模型清单和全局用途路由。配置会加密写入数据库，所有对话（含知识库问答）都按这里启用的 CHAT 路由调用模型。</p>
         </div>
         <button class="btn primary" id="btnAddProvider">+ 新增供应商</button>
     </div>
@@ -191,6 +191,24 @@
         </div>
         <div class="route-grid" id="routeGrid"></div>
         <p class="hint">CHAT 是普通对话使用的主路由；EMBEDDING 是知识库向量化要用的路由。路由只能指向已添加的模型。</p>
+    </section>
+
+    <section class="panel">
+        <div class="panel-head">
+            <h2>外部数据源</h2>
+            <span class="sub">票房接口密钥</span>
+        </div>
+        <div class="field-row">
+            <div class="field" style="flex:1;">
+                <label for="boxofficeKey">极数本源 API Key</label>
+                <input id="boxofficeKey" type="password" placeholder="sk-..." autocomplete="new-password"/>
+                <div class="tip" id="boxofficeKeyTip">加载中…</div>
+            </div>
+            <div class="field" style="display:flex;align-items:flex-end;padding-bottom:10px;gap:8px;">
+                <button type="button" class="btn primary" id="btnSaveBoxofficeKey">保存</button>
+                <button type="button" class="btn ghost" id="btnClearBoxofficeKey">清除</button>
+            </div>
+        </div>
     </section>
 
     <section class="panel">
@@ -211,7 +229,7 @@
             <div class="field">
                 <label for="pName">名称 *</label>
                 <input id="pName" required placeholder="deepseek" autocomplete="off"/>
-                <div class="tip">与 application.yml 中 provider 的 key 保持一致时，对话会优先使用数据库配置。</div>
+                <div class="tip">用于区分不同供应商，可自由填写；对话按「用途路由」里的 CHAT 配置选择模型。</div>
             </div>
             <div class="field">
                 <label for="pBaseUrl">Base URL *</label>
@@ -657,6 +675,54 @@ document.addEventListener('keydown', (event) => {
     }
 });
 
+/* ---------------- 外部数据源 ---------------- */
+
+async function loadBoxofficeSettings() {
+    const tip = document.getElementById('boxofficeKeyTip');
+    try {
+        const s = await api('/settings/boxoffice');
+        if (s.configured) {
+            const from = s.source === 'database' ? '页面配置' : '环境变量';
+            tip.innerHTML = '当前已配置：<b>' + esc(s.masked) + '</b>（来源：' + from + '）；输入新 Key 保存即可替换。';
+        } else {
+            tip.textContent = '尚未配置。匿名额度已用尽，请粘贴极数本源 API Key 后保存。';
+        }
+    } catch (e) {
+        tip.textContent = '读取配置失败：' + e.message;
+    }
+}
+
+async function saveBoxofficeKey() {
+    const input = document.getElementById('boxofficeKey');
+    const value = input.value.trim();
+    if (!value) {
+        toast('请输入 API Key', 'err');
+        return;
+    }
+    try {
+        await api('/settings/boxoffice', { method: 'PUT', body: JSON.stringify({ apiKey: value }) });
+        input.value = '';
+        toast('已保存，票房数据已刷新', 'ok');
+        await loadBoxofficeSettings();
+    } catch (e) {
+        toast(e.message, 'err');
+    }
+}
+
+async function clearBoxofficeKey() {
+    if (!confirm('清除已保存的极数本源 API Key？清除后票房数据将不可用。')) return;
+    try {
+        await api('/settings/boxoffice', { method: 'DELETE' });
+        toast('已清除', 'ok');
+        await loadBoxofficeSettings();
+    } catch (e) {
+        toast(e.message, 'err');
+    }
+}
+
+document.getElementById('btnSaveBoxofficeKey').addEventListener('click', saveBoxofficeKey);
+document.getElementById('btnClearBoxofficeKey').addEventListener('click', clearBoxofficeKey);
+
 /* ---------------- 刷新 ---------------- */
 
 async function refresh() {
@@ -664,6 +730,7 @@ async function refresh() {
         await loadAll();
         renderRoutes();
         renderProviders();
+        await loadBoxofficeSettings();
     } catch (e) {
         document.getElementById('providerList').innerHTML =
             '<div class="empty">加载失败：' + esc(e.message) + '</div>';

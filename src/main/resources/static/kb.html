@@ -210,7 +210,7 @@
     <div class="page-head">
         <div>
             <h1>知识库</h1>
-            <p>上传文档后自动解析、切分并向量化。对话时先检索相关片段再回答，并给出引用来源。向量化使用「模型配置」中设置的 EMBEDDING 路由。</p>
+            <p>上传文档后自动解析、切分并入库。默认使用关键词检索，对话时先检索相关片段再回答，并给出引用来源；配置并开启向量化后可切换为语义检索。</p>
         </div>
         <button class="btn primary" id="btnNewKb">+ 新建知识库</button>
     </div>
@@ -228,7 +228,7 @@
             <div class="empty-main" id="emptyMain">
                 <div class="big">📚</div>
                 <h3>还没有选择知识库</h3>
-                <p>从左侧选择一个知识库，或者点击「新建知识库」开始。建议先接入 1024 维的 embedding 模型（例如通义 text-embedding-v3）。</p>
+                <p>从左侧选择一个知识库，或者点击「新建知识库」开始。当前默认使用关键词检索；如需语义检索，可在模型配置中接入 1024 维 embedding 模型并开启向量化。</p>
             </div>
 
             <div id="kbMain" style="display:none;">
@@ -258,7 +258,7 @@
                     <div class="upload-zone" id="uploadZone">
                         <div class="uz-icon">⬆</div>
                         <div class="uz-title">点击或拖拽文件到这里上传</div>
-                        <div class="uz-sub">支持 txt / md / csv / json / html / log / pdf，单文件最大 20MB。上传后同步解析和向量化。</div>
+                        <div class="uz-sub">支持 txt / md / csv / json / html / log / pdf，单文件最大 20MB。上传后同步解析和切分。</div>
                     </div>
                     <input type="file" id="fileInput" multiple style="display:none;"
                            accept=".txt,.md,.markdown,.csv,.json,.html,.htm,.log,.xml,.yml,.yaml,.pdf"/>
@@ -277,7 +277,7 @@
                         </select>
                         <button class="btn primary" type="submit" id="searchBtn">检索</button>
                     </form>
-                    <div id="searchResults"><div class="muted" style="font-size:12px;">检索结果会按相似度从高到低显示。</div></div>
+                    <div id="searchResults"><div class="muted" style="font-size:12px;">检索结果会按相关度显示。</div></div>
                 </section>
 
                 <section class="tab-pane hidden chat-pane" id="tab-chat">
@@ -472,7 +472,13 @@ async function selectKb(id, resetChat) {
     document.getElementById('kbDesc').style.display = kb.description ? 'block' : 'none';
     document.getElementById('kbStats').textContent = kb.documentCount + ' 个文档 · ' + kb.chunkCount + ' 个分块';
     const embedding = document.getElementById('kbEmbedding');
-    if (kb.embeddingRoute) {
+    if (kb.vectorEnabled === false) {
+        embedding.textContent = '检索：关键词模式';
+        embedding.className = 'pill ok';
+        embedding.title = '当前未启用向量化，上传与检索不依赖 embedding';
+        embedding.onclick = null;
+        embedding.style.cursor = 'default';
+    } else if (kb.embeddingRoute) {
         embedding.textContent = 'EMBEDDING：' + kb.embeddingRoute;
         embedding.className = 'pill ok';
         embedding.onclick = null;
@@ -521,6 +527,9 @@ function renderDocs() {
         box.innerHTML = '<div class="muted" style="font-size:12px;text-align:center;padding:22px;">还没有文档，上传一个试试。</div>';
         return;
     }
+    const activeKb = state.list.find((k) => k.id === state.activeId);
+    const vectorMode = !activeKb || activeKb.vectorEnabled !== false;
+    const reindexLabel = vectorMode ? '重建' : '重新处理';
     const rows = state.docs.map((doc) => {
         const canPreview = doc.status === 'READY';
         return '<tr data-doc-id="' + doc.id + '">' +
@@ -533,7 +542,7 @@ function renderDocs() {
             '<td class="muted">' + formatTime(doc.createdAt) + '</td>' +
             '<td style="text-align:right;white-space:nowrap;">' +
                 (canPreview ? '<button class="btn small ghost" data-act="chunks" data-id="' + doc.id + '" data-name="' + esc(doc.name) + '">分块</button> ' : '') +
-                '<button class="btn small ghost" data-act="reindex" data-id="' + doc.id + '">重建</button> ' +
+                '<button class="btn small ghost" data-act="reindex" data-id="' + doc.id + '">' + reindexLabel + '</button> ' +
                 '<button class="btn small danger" data-act="del" data-id="' + doc.id + '" data-name="' + esc(doc.name) + '">删除</button>' +
             '</td>' +
         '</tr>';
@@ -573,9 +582,12 @@ document.getElementById('docList').addEventListener('click', async (event) => {
 
     if (act === 'reindex') {
         btn.disabled = true;
+        const activeKb = state.list.find((k) => k.id === state.activeId);
+        const vectorMode = !activeKb || activeKb.vectorEnabled !== false;
+        const actionName = vectorMode ? '重建' : '处理';
         try {
             const doc = await api('/' + kbId + '/documents/' + docId + '/reindex', { method: 'POST' });
-            toast(doc.status === 'READY' ? '重建完成' : '重建失败：' + (doc.errorMsg || ''), doc.status === 'READY' ? 'ok' : 'err');
+            toast(doc.status === 'READY' ? actionName + '完成' : actionName + '失败：' + (doc.errorMsg || ''), doc.status === 'READY' ? 'ok' : 'err');
             await loadDocs();
             await loadKbs(state.activeId);
         } catch (e) { toast(e.message, 'err'); }
@@ -584,7 +596,7 @@ document.getElementById('docList').addEventListener('click', async (event) => {
     }
 
     if (act === 'del') {
-        if (!confirm('删除文档「' + btn.dataset.name + '」及其分块和向量？')) return;
+        if (!confirm('删除文档「' + btn.dataset.name + '」及其全部分块？')) return;
         try {
             await api('/' + kbId + '/documents/' + docId, { method: 'DELETE' });
             toast('文档已删除', 'ok');
@@ -624,7 +636,7 @@ async function uploadFiles(files) {
     if (state.activeId == null || !files.length) return;
     for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        uploadStatus.textContent = '正在上传并向量化 (' + (i + 1) + '/' + files.length + ')：' + file.name;
+        uploadStatus.textContent = '正在上传处理 (' + (i + 1) + '/' + files.length + ')：' + file.name;
         const form = new FormData();
         form.append('file', file);
         try {
@@ -669,20 +681,22 @@ document.getElementById('searchForm').addEventListener('submit', async (event) =
     if (!query) return;
     const btn = document.getElementById('searchBtn');
     const box = document.getElementById('searchResults');
+    const activeKb = state.list.find((k) => k.id === state.activeId);
+    const vectorMode = !activeKb || activeKb.vectorEnabled !== false;
     btn.disabled = true; btn.textContent = '检索中…';
-    box.innerHTML = '<div class="muted" style="font-size:12px;">正在向量化查询并检索…</div>';
+    box.innerHTML = '<div class="muted" style="font-size:12px;">正在检索…</div>';
     try {
         const results = await api('/' + state.activeId + '/search', jsonOptions('POST', {
             query,
             topK: Number(document.getElementById('searchTopK').value)
         }));
         if (!results.length) {
-            box.innerHTML = '<div class="muted" style="font-size:12px;">没有命中任何分块。确认文档状态为「已就绪」，或换一个问法。</div>';
+            box.innerHTML = '<div class="muted" style="font-size:12px;">没有命中任何分块。确认文档状态为「已就绪」，或换一个关键词。</div>';
         } else {
             box.innerHTML = results.map((r, i) => '<div class="result-card">' +
                 '<div class="result-head"><span class="result-doc">[' + (i + 1) + '] ' + esc(r.documentName) + '</span>' +
                 '<span class="result-seq">片段 #' + r.seq + '</span>' +
-                '<span class="score">相似度 ' + r.score + '</span></div>' +
+                '<span class="score">' + (vectorMode ? '相似度 ' + r.score : '关键词命中') + '</span></div>' +
                 '<div class="result-content">' + esc(r.content) + '</div>' +
             '</div>').join('');
         }
@@ -733,9 +747,11 @@ function renderCitations(container, citations) {
         container.innerHTML = '';
         return;
     }
+    const activeKb = state.list.find((k) => k.id === state.activeId);
+    const vectorMode = !activeKb || activeKb.vectorEnabled !== false;
     container.innerHTML = citations.map((c, i) => '<div class="citation">' +
         '<div class="c-head"><b>[' + (i + 1) + '] ' + esc(c.documentName) + '</b>' +
-        '<span>片段 #' + c.seq + '</span><span class="s">' + c.score + '</span></div>' +
+        '<span>片段 #' + c.seq + '</span><span class="s">' + (vectorMode ? c.score : '关键词命中') + '</span></div>' +
         '<div class="c-body">' + esc((c.content || '').slice(0, 160)) + (c.content && c.content.length > 160 ? '…' : '') + '</div>' +
         (c.content && c.content.length > 160 ? '<details><summary>展开全文</summary><div class="c-body" style="max-height:none;margin-top:6px;">' + esc(c.content) + '</div></details>' : '') +
     '</div>').join('');
@@ -911,7 +927,7 @@ document.getElementById('kbForm').addEventListener('submit', async (event) => {
 document.getElementById('btnDelKb').addEventListener('click', async () => {
     const kb = state.list.find((k) => k.id === state.activeId);
     if (!kb) return;
-    if (!confirm('删除知识库「' + kb.name + '」？其中的文档、分块和向量都会删除，无法恢复。')) return;
+    if (!confirm('删除知识库「' + kb.name + '」？其中的文档和分块都会删除，无法恢复。')) return;
     try {
         await api('/' + kb.id, { method: 'DELETE' });
         toast('知识库已删除', 'ok');

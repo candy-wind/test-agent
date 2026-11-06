@@ -10,6 +10,7 @@ public record KbView(
         Integer chunkOverlap,
         long documentCount,
         long chunkCount,
+        boolean vectorEnabled,
         String embeddingRoute,
         Instant createdAt
 ) {

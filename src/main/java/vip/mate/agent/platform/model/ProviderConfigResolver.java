@@ -7,7 +7,7 @@ import vip.mate.agent.config.AgentProperties;
 
 /**
  * 对话与数据库模型配置之间的桥接。
- * 数据库不可用或未配置时返回 null，让 ChatServiceImpl 回退到 application.yml。
+ * 所有模型供应商/API Key 都来自「模型配置」页面写入的数据库记录，不再回退 application.yml。
  */
 @Slf4j
 @Component
@@ -16,6 +16,7 @@ public class ProviderConfigResolver {
 
     private final ModelConfigService modelConfigService;
 
+    /** 按供应商名称解析；名称不存在或配置不可用时返回 null。 */
     public AgentProperties.ProviderConfig resolve(String name) {
         if (name == null || name.isBlank()) {
             return null;
@@ -23,7 +24,17 @@ public class ProviderConfigResolver {
         try {
             return modelConfigService.resolveEffectiveProvider(name);
         } catch (Exception e) {
-            log.warn("[model-resolve] 读取数据库模型配置失败，回退 application.yml: {}", e.getMessage());
+            log.warn("[model-resolve] 读取数据库模型配置失败: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /** 按 CHAT 路由解析默认供应商；未配置路由时返回 null。 */
+    public AgentProperties.ProviderConfig resolveDefaultChat() {
+        try {
+            return modelConfigService.resolveChatProviderFromRoute();
+        } catch (Exception e) {
+            log.warn("[model-resolve] 读取 CHAT 路由失败: {}", e.getMessage());
             return null;
         }
     }

@@ -21,4 +21,9 @@ public interface BoxOfficeService {
      *  - 未在映      -> 返回影片基础信息(无票房字段)
      */
     List<BoxOfficeMovie> searchMovies(String keyword);
+
+    /**
+     * 立即刷新数据源缓存（页面保存配置后调用）
+     */
+    BoxOfficeData refreshCache();
 }

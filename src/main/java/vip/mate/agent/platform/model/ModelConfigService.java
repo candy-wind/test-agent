@@ -165,6 +165,7 @@ public class ModelConfigService {
     @Transactional
     public ModelView createModel(Long providerId, ModelRequest request) {
         requireProvider(providerId);
+        requireValidModelKey(request.modelKey());
         modelRepository.findByProviderIdAndModelKey(providerId, request.modelKey().trim())
                 .ifPresent(m -> {
                     throw new IllegalArgumentException("模型已存在: " + request.modelKey());
@@ -191,6 +192,7 @@ public class ModelConfigService {
         AiModel model = modelRepository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("模型不存在: " + id));
 
+        requireValidModelKey(request.modelKey());
         model.setModelKey(request.modelKey().trim());
         if (request.displayName() != null && !request.displayName().isBlank()) {
             model.setDisplayName(request.displayName().trim());
@@ -249,8 +251,8 @@ public class ModelConfigService {
     // ==================== 对话桥接 ====================
 
     /**
-     * 为现有 ChatServiceImpl 提供数据库中的供应商配置。
-     * 返回 null 表示数据库中不可用，由调用方回退 application.yml。
+     * 按供应商名称读取数据库中的模型配置。
+     * 返回 null 表示数据库中不可用（不存在、停用或未配置 CHAT 模型）。
      */
     @Transactional(readOnly = true)
     public AgentProperties.ProviderConfig resolveEffectiveProvider(String name) {
@@ -264,7 +266,7 @@ public class ModelConfigService {
         List<AiModel> models = modelRepository.findByProviderIdOrderByIdAsc(provider.getId());
         String chatModel = pickModel(models, "CHAT");
         if (chatModel == null) {
-            log.warn("[model-resolve] 供应商 {} 未配置 CHAT 模型，回退 application.yml", name);
+            log.warn("[model-resolve] 供应商 {} 未配置 CHAT 模型", name);
             return null;
         }
 
@@ -272,6 +274,26 @@ public class ModelConfigService {
         config.setBaseUrl(provider.getBaseUrl());
         config.setApiKey(cryptoService.decrypt(provider.getApiKeyCipher()));
         config.setChatModel(chatModel);
+        config.setVisionModel(pickModel(models, "VISION"));
+        config.setReasonerModel(pickModel(models, "REASONER"));
+        return config;
+    }
+
+    /**
+     * 按 CHAT 路由解析默认对话供应商，供未指定供应商的老接口使用。
+     * 返回 null 表示尚未在「模型配置」页面配置可用的 CHAT 路由。
+     */
+    @Transactional(readOnly = true)
+    public AgentProperties.ProviderConfig resolveChatProviderFromRoute() {
+        ModelEndpoint endpoint = resolveEndpoint("CHAT");
+        if (endpoint == null) {
+            return null;
+        }
+        List<AiModel> models = modelRepository.findByProviderIdOrderByIdAsc(endpoint.providerId());
+        AgentProperties.ProviderConfig config = new AgentProperties.ProviderConfig();
+        config.setBaseUrl(endpoint.baseUrl());
+        config.setApiKey(endpoint.apiKey());
+        config.setChatModel(endpoint.modelKey());
         config.setVisionModel(pickModel(models, "VISION"));
         config.setReasonerModel(pickModel(models, "REASONER"));
         return config;
@@ -312,6 +334,24 @@ public class ModelConfigService {
     private AiProvider requireProvider(Long id) {
         return providerRepository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("供应商不存在: " + id));
+    }
+
+    /**
+     * 模型标识会原样传给 OpenAI 兼容接口的 model 字段，只允许可见 ASCII 字符，
+     * 避免把“对话模型”之类的显示名称误填到这里。
+     */
+    private void requireValidModelKey(String modelKey) {
+        if (modelKey == null || modelKey.isBlank()) {
+            throw new IllegalArgumentException("模型标识不能为空");
+        }
+        String trimmed = modelKey.trim();
+        for (int i = 0; i < trimmed.length(); i++) {
+            char c = trimmed.charAt(i);
+            if (c < 0x21 || c > 0x7e) {
+                throw new IllegalArgumentException(
+                        "模型标识「" + trimmed + "」无效，请填写服务商真实模型名，例如 deepseek-chat、qwen-plus");
+            }
+        }
     }
 
     private String pickModel(List<AiModel> models, String capability) {

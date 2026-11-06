@@ -6,7 +6,7 @@
 
 - **接口地址**: `https://v1.apizero.cn/api/movie-box`
 - **请求方式**: GET
-- **鉴权**: 无需鉴权，匿名可调
+- **鉴权**: 匿名额度有限（每日 5 次且容易被用尽），额度用完后需在 https://apizero.cn 注册获取 API Key，通过请求头 `X-API-KEY` 传递（配置项 `boxoffice.apizero.api-key` / 环境变量 `APIZERO_API_KEY`）
 - **数据底层来源**: 猫眼专业版
 - **缓存周期**: 60 秒
 - **说明**: 返回当日票房 Top10 在映影片
@@ -88,6 +88,8 @@ GET /api/boxoffice/search?keyword=关键词
 boxoffice:
   provider: apizero          # 数据源: apizero | maoyan
   refresh-interval-ms: 60000 # 定时刷新缓存间隔
+  apizero:
+    api-key: ""              # 极数本源 API Key (匿名额度用尽后必填)
   maoyan:
     cookie: ""               # 猫眼登录 Cookie (可选)
 ```

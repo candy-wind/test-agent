@@ -8,7 +8,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
-import vip.mate.agent.config.AgentProperties;
 import vip.mate.agent.dto.ChatMessage;
 import vip.mate.agent.platform.knowledge.dto.KbChatRequest;
 import vip.mate.agent.platform.model.ModelConfigService;
@@ -47,7 +46,6 @@ public class KbChatService {
 
     private final KnowledgeBaseService knowledgeBaseService;
     private final ModelConfigService modelConfigService;
-    private final AgentProperties agentProperties;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final ExecutorService executor = Executors.newCachedThreadPool();
 
@@ -59,11 +57,9 @@ public class KbChatService {
     private int maxHistoryMessages;
 
     public KbChatService(KnowledgeBaseService knowledgeBaseService,
-                         ModelConfigService modelConfigService,
-                         AgentProperties agentProperties) {
+                         ModelConfigService modelConfigService) {
         this.knowledgeBaseService = knowledgeBaseService;
         this.modelConfigService = modelConfigService;
-        this.agentProperties = agentProperties;
     }
 
     public SseEmitter chat(Long kbId, KbChatRequest request) {
@@ -110,20 +106,51 @@ public class KbChatService {
 
     private ChatEndpoint resolveChat(String requestedModel) {
         ModelEndpoint endpoint = modelConfigService.resolveEndpoint("CHAT");
-        if (endpoint != null) {
-            String model = requestedModel != null && !requestedModel.isBlank()
-                    ? requestedModel.trim() : endpoint.modelKey();
-            return new ChatEndpoint(endpoint.baseUrl(), endpoint.apiKey(), model);
-        }
-        String providerName = agentProperties.getDefaultProvider();
-        AgentProperties.ProviderConfig config = agentProperties.getProviders() == null
-                ? null : agentProperties.getProviders().get(providerName);
-        if (config == null || config.getBaseUrl() == null || config.getBaseUrl().isBlank()) {
-            throw new IllegalStateException("未配置 CHAT 路由，application.yml 中也没有可用的模型供应商");
+        if (endpoint == null) {
+            throw new IllegalStateException("还没有可用的对话模型，请先到「模型配置」页面添加供应商和模型，"
+                    + "并把 CHAT 路由指向其中一个模型");
         }
         String model = requestedModel != null && !requestedModel.isBlank()
-                ? requestedModel.trim() : config.getChatModel();
-        return new ChatEndpoint(trimSlash(config.getBaseUrl()), config.getApiKey(), model);
+                ? requestedModel.trim() : endpoint.modelKey();
+        validateModelKey(model);
+        validateApiKey(endpoint.apiKey(), endpoint.providerName());
+        return new ChatEndpoint(endpoint.baseUrl(), endpoint.apiKey(), model);
+    }
+
+    /**
+     * 模型标识会原样传给服务商并出现在请求体里，中文或空白说明配置有误，
+     * 提前给出可操作的提示，而不是等模型返回 400。
+     */
+    private void validateModelKey(String model) {
+        if (model == null || model.isBlank()) {
+            throw new IllegalStateException("CHAT 路由没有配置模型标识，请在「配置模型」页面选择或填写模型");
+        }
+        if (!isPrintableAscii(model)) {
+            throw new IllegalStateException("模型标识「" + model
+                    + "」无效，应填写服务商的真实模型名（如 deepseek-chat、qwen-plus），"
+                    + "请到「配置模型」页面修改");
+        }
+    }
+
+    /** API Key 需要放进 HTTP 头，占位值（如“你的apikey”）会导致请求无法发出。 */
+    private void validateApiKey(String apiKey, String providerName) {
+        String name = providerName == null || providerName.isBlank() ? "当前供应商" : "供应商「" + providerName + "」";
+        if (apiKey == null || apiKey.isBlank()) {
+            throw new IllegalStateException(name + "没有配置 API Key，请在「配置模型」页面补充后重试");
+        }
+        if (!isPrintableAscii(apiKey)) {
+            throw new IllegalStateException(name + "的 API Key 仍是占位值，请在「配置模型」页面填写真实 Key 后重试");
+        }
+    }
+
+    private boolean isPrintableAscii(String value) {
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (c < 0x21 || c > 0x7e) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private String buildRequestBody(String model, String context, List<ChatMessage> history) throws Exception {
@@ -203,14 +230,6 @@ public class KbChatService {
             }
         }
         return null;
-    }
-
-    private String trimSlash(String url) {
-        String value = url == null ? "" : url.trim();
-        while (value.endsWith("/")) {
-            value = value.substring(0, value.length() - 1);
-        }
-        return value;
     }
 
     private String messageOf(Exception e) {

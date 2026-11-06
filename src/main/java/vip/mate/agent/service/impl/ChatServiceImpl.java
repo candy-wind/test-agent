@@ -311,16 +311,19 @@ public class ChatServiceImpl implements ChatService {
     // ==================== 私有方法 ====================
 
     private AgentProperties.ProviderConfig resolveProvider(ChatRequest request) {
-        String name = (request.getProvider() != null && !request.getProvider().isBlank())
-                ? request.getProvider()
-                : agentProperties.getDefaultProvider();
-        // 优先使用数据库中的模型配置；数据库不可用或未配置时回退 application.yml
-        AgentProperties.ProviderConfig config = providerConfigResolver.resolve(name);
-        if (config == null && agentProperties.getProviders() != null) {
-            config = agentProperties.getProviders().get(name);
+        String name = request.getProvider();
+        if (name != null && !name.isBlank()) {
+            AgentProperties.ProviderConfig config = providerConfigResolver.resolve(name);
+            if (config == null) {
+                throw new IllegalArgumentException("未找到可用的模型供应商: " + name
+                        + "，请到「模型配置」页面确认供应商已启用，并至少配置一个 CHAT 模型");
+            }
+            return config;
         }
+        AgentProperties.ProviderConfig config = providerConfigResolver.resolveDefaultChat();
         if (config == null) {
-            throw new IllegalArgumentException("未找到模型提供商: " + name);
+            throw new IllegalStateException("还没有可用的对话模型，请先到「模型配置」页面添加供应商和模型，"
+                    + "并把 CHAT 路由指向其中一个模型");
         }
         return config;
     }
