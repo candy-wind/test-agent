@@ -134,6 +134,40 @@ docker compose -f docker-compose.prod.yml up -d --build
 - 直接访问：放行 8080（来源建议限制为自己的 IP）
 - 走 Nginx：放行 80 / 443，8080 不对外开放
 
+### 使用阿里云 ACR 预构建镜像（可选）
+
+服务器不装 JDK/Maven、也不想在服务器上构建时，可以先把镜像推到阿里云容器镜像服务（ACR），ECS 只负责拉取。
+
+**一次性准备（ACR 控制台）**
+
+1. 开通「容器镜像服务 → 个人版」，选择地域（与 ECS 同地域最好）。
+2. 创建命名空间和镜像仓库，例如命名空间 `myns`、仓库 `test-agent`。
+3. 在「访问凭证」里设置固定密码，登录时使用阿里云账号全名 + 该密码。
+
+**本地构建并推送**（在开发机执行）
+
+```bash
+docker login --username=<阿里云账号全名> registry.cn-hangzhou.aliyuncs.com
+docker tag test-agent:1.0.0 registry.cn-hangzhou.aliyuncs.com/<命名空间>/test-agent:1.0.0
+docker push registry.cn-hangzhou.aliyuncs.com/<命名空间>/test-agent:1.0.0
+```
+
+**ECS 上改为拉取镜像**
+
+在 `.env` 中填写镜像地址：
+
+```bash
+APP_IMAGE=registry.cn-hangzhou.aliyuncs.com/<命名空间>/test-agent:1.0.0
+```
+
+然后执行 `./deploy.sh`，脚本会自动 `docker compose pull app` 并用 `--no-build` 启动，不再本地构建。
+
+补充说明：
+
+- 仓库设为**公开**时 ECS 拉取无需登录；设为**私有**时先在 ECS 执行 `sudo docker login --username=<账号> registry.cn-hangzhou.aliyuncs.com`（用 `sudo docker` 就对应 root 的凭据）。
+- ECS 与 ACR 同地域时，可用 VPC 地址 `registry-vpc.cn-hangzhou.aliyuncs.com/<命名空间>/test-agent:1.0.0`，走内网、速度快且不占公网流量。
+- 推送时如提示 `denied`，通常是仓库未创建、命名空间不匹配或密码错误。
+
 ---
 
 ## 6. 开机自动恢复

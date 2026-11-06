@@ -42,6 +42,8 @@ LOG_SERVICE_NAME="${LOG_SERVICE_NAME:-$(read_env LOG_SERVICE_NAME)}"
 LOG_SERVICE_NAME="${LOG_SERVICE_NAME:-test-agent}"
 APP_PORT="${APP_PORT:-$(read_env APP_PORT)}"
 APP_PORT="${APP_PORT:-8080}"
+APP_IMAGE="${APP_IMAGE:-$(read_env APP_IMAGE)}"
+APP_IMAGE="${APP_IMAGE:-test-agent:1.0.0}"
 
 if [ -z "$DB_PASSWORD" ] || [ "$DB_PASSWORD" = "换成强密码" ]; then
   err ".env 中 DB_PASSWORD 未设置，请改成强密码后重试"
@@ -52,8 +54,14 @@ log "准备数据目录：${LOG_ROOT}/${LOG_SERVICE_NAME}、${DATA_ROOT}"
 sudo mkdir -p "${LOG_ROOT}/${LOG_SERVICE_NAME}" "${DATA_ROOT}/kb" "${DATA_ROOT}/uploads"
 sudo chown -R "${APP_UID}:${APP_UID}" "${LOG_ROOT}/${LOG_SERVICE_NAME}" "${DATA_ROOT}"
 
-log "构建并启动容器（首次构建需要下载依赖，耗时较长）"
-$DOCKER compose -f "$COMPOSE_FILE" up -d --build
+if [ "$APP_IMAGE" = "test-agent:1.0.0" ]; then
+  log "本地构建并启动容器（首次构建需要下载依赖，耗时较长）"
+  $DOCKER compose -f "$COMPOSE_FILE" up -d --build
+else
+  log "拉取预构建镜像并启动：${APP_IMAGE}"
+  $DOCKER compose -f "$COMPOSE_FILE" pull app
+  $DOCKER compose -f "$COMPOSE_FILE" up -d --no-build
+fi
 
 log "等待应用健康检查通过..."
 status="unknown"

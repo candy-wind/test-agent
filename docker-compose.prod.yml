@@ -33,7 +33,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: test-agent:1.0.0
+    # 本地构建时用默认值；使用阿里云 ACR 预构建镜像时在 .env 里设置 APP_IMAGE
+    image: ${APP_IMAGE:-test-agent:1.0.0}
     container_name: test-agent-app
     restart: unless-stopped
     depends_on:
