@@ -224,15 +224,103 @@
             flex: 1;
             overflow: hidden;
             position: relative;
+            display: flex;
+            flex-direction: column;
             background:
                 radial-gradient(800px 500px at 50% -10%, rgba(99,102,241,.04), transparent 60%);
         }
         .content iframe {
             width: 100%;
-            height: 100%;
+            flex: 1;
+            min-height: 0;
             border: none;
             display: block;
         }
+
+        /* 顶部项目说明标签 */
+        .notice-bar {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 10px 20px;
+            font-size: 12.5px;
+            line-height: 1.65;
+            color: #c7d2ff;
+            background: linear-gradient(90deg, rgba(99,102,241,.18), rgba(6,255,165,.07));
+            border-bottom: 1px solid rgba(99,102,241,.28);
+        }
+        .notice-main {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            flex: 1;
+            min-width: 0;
+        }
+        .notice-bar .notice-tag {
+            flex-shrink: 0;
+            margin-top: 1px;
+            padding: 1px 9px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 700;
+            color: #0a0e27;
+            background: linear-gradient(135deg, var(--accent), var(--primary));
+        }
+        .notice-bar .notice-text { flex: 1; }
+        .notice-bar .notice-text strong { color: #fff; }
+
+        /* 微信收款码 */
+        .notice-pay {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-shrink: 0;
+            padding: 5px 12px 5px 5px;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,.1);
+            background: rgba(255,255,255,.05);
+            text-decoration: none;
+            transition: all .15s;
+        }
+        .notice-pay:hover {
+            border-color: rgba(6,255,165,.45);
+            background: rgba(6,255,165,.08);
+        }
+        .notice-pay img {
+            width: 104px;
+            height: 109px;
+            object-fit: cover;
+            border-radius: 8px;
+            background: #fff;
+            display: block;
+        }
+        .pay-copy {
+            display: flex;
+            flex-direction: column;
+            font-size: 12px;
+            line-height: 1.55;
+            color: var(--text);
+            white-space: nowrap;
+        }
+        .pay-copy strong { font-size: 12.5px; color: var(--accent); }
+        .pay-copy em {
+            margin-top: 2px;
+            font-style: normal;
+            font-size: 11px;
+            color: var(--muted);
+        }
+
+        .notice-bar .notice-close {
+            flex-shrink: 0;
+            border: none;
+            background: transparent;
+            color: var(--muted);
+            font-size: 16px;
+            line-height: 1;
+            padding: 0 2px;
+            cursor: pointer;
+        }
+        .notice-bar .notice-close:hover { color: #fff; }
 
         /* 移动端响应 */
         @media (max-width: 768px) {
@@ -244,6 +332,10 @@
             }
             .sidebar.open { transform: translateX(0); }
             .topbar .toggle-sidebar { display: inline-block; }
+            .notice-bar { padding: 10px 12px; flex-wrap: wrap; gap: 10px; }
+            .notice-pay { padding: 4px 10px 4px 4px; }
+            .notice-pay img { width: 84px; height: 88px; }
+            .notice-main { flex-basis: 100%; order: 2; }
         }
     </style>
 </head>
@@ -300,6 +392,23 @@
             </div>
         </div>
         <div class="content">
+            <div class="notice-bar" id="noticeBar">
+                <a class="notice-pay" href="/images/pay-wechat.png" target="_blank" rel="noopener" title="点击查看收款码大图">
+                    <img src="/images/pay-wechat.png" alt="微信收款码"/>
+                    <span class="pay-copy">
+                        <strong>生活不易</strong>
+                        <span>感谢大佬资助</span>
+                        <em>微信扫码 · 点击看大图</em>
+                    </span>
+                </a>
+                <div class="notice-main">
+                    <span class="notice-tag">自学使用</span>
+                    <span class="notice-text">
+                        <strong>个人自建 AI Agent 平台</strong>：包含 AI 对话、知识库问答、实时票房和模型配置，仅用于个人学习与技术验证。服务运行在自己的服务器上，数据只保存在本机数据库，不对外共享，不存在对外数据泄露；模型请求仅发送给本人配置的模型服务商。
+                    </span>
+                </div>
+                <button type="button" class="notice-close" id="noticeClose" title="关闭提示">×</button>
+            </div>
             <iframe id="frame" src="/chat.html"></iframe>
         </div>
     </div>
@@ -311,6 +420,16 @@ const currentPage = document.getElementById('currentPage');
 const toggleBtn = document.getElementById('toggleSidebar');
 const sidebar = document.getElementById('sidebar');
 const logoutBtn = document.getElementById('logoutBtn');
+const noticeBar = document.getElementById('noticeBar');
+
+// 顶部说明标签：关闭后记住状态
+if (localStorage.getItem('app_notice_dismissed') === '1') {
+    noticeBar.style.display = 'none';
+}
+document.getElementById('noticeClose').addEventListener('click', () => {
+    noticeBar.style.display = 'none';
+    try { localStorage.setItem('app_notice_dismissed', '1'); } catch (e) {}
+});
 
 const PAGES = {
     chat: { title: 'AI 对话', url: '/chat.html' },
