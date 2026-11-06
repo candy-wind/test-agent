@@ -171,6 +171,8 @@ $env:DB_PASSWORD = "你的密码"
 | `KB_STORAGE_DIR` | 知识库上传文件目录（`./data/kb`） |
 | `KB_VECTORIZATION_ENABLED` | 是否启用知识库向量化（默认 `false`） |
 | `APIZERO_API_KEY` | 极数本源票房接口的 API Key（匿名额度用尽后必须配置） |
+| `LOG_DIR` | 日志根目录（`/mnt/logs`） |
+| `LOG_SERVICE_NAME` | 日志子目录，默认取服务名（`test-agent`） |
 
 > 模型供应商、模型和 API Key 不再写在 `application.yml` 里，统一在「模型配置」页面维护；Key 使用 `APP_SECRET_KEY` 加密后存入数据库。票房数据源的 API Key 也在同一页面的「外部数据源」区域保存，优先于 `APIZERO_API_KEY` 环境变量。
 
@@ -188,7 +190,7 @@ $env:DB_PASSWORD = "你的密码"
 其他限制：
 
 - 单文件上传上限 20MB（`spring.servlet.multipart.max-file-size`）
-- 日志文件：`logs/app.log`
+- 日志文件：`/mnt/logs/test-agent/app.log`（按天滚动，保留 15 天，级别 INFO；可用 `LOG_DIR`、`LOG_SERVICE_NAME` 覆盖目录和服务名）
 
 ---
 
@@ -336,7 +338,7 @@ test-agent/
 ├─ run-mvn.ps1            # JDK 25 下的 Maven 包装
 ├─ docker-compose.yml     # PostgreSQL + pgvector
 ├─ data/kb/               # 知识库上传的原文件（已 gitignore）
-├─ logs/app.log           # 运行日志
+├─ /mnt/logs/test-agent/  # 运行日志（保留 15 天）
 ├─ target/                # 构建产物
 ├─ src/main/resources/
 │  ├─ application.yml

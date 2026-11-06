@@ -36,10 +36,16 @@ spring:
 logging:
   level:
     root: INFO
-    vip.mate.agent: DEBUG
-    org.springframework.web: DEBUG
+    vip.mate.agent: INFO
+    org.springframework.web: INFO
   file:
-    name: logs/app.log
+    # 日志目录/服务名可通过环境变量覆盖；Windows 上 /mnt/logs 会落到当前盘符根目录
+    name: ${LOG_DIR:/mnt/logs}/${LOG_SERVICE_NAME:test-agent}/app.log
+  logback:
+    rollingpolicy:
+      max-history: 15          # 保留 15 天
+      max-file-size: 50MB      # 单个日志文件上限
+      total-size-cap: 5GB      # 日志总大小上限
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %highlight(%-5level) [%thread] %cyan(%logger{36}) - %msg%n"
     file: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n"
