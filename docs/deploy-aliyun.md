@@ -296,12 +296,20 @@ GIT_REPO=https://gitee.com/<你的镜像>/test-agent.git bash deploy.sh
 **镜像拉取超时**
 配置第 3 节的镜像加速器；或在国内机器上先把镜像推到阿里云 ACR，再改 compose 里的 image 地址。
 
-**首次构建下载 Maven 依赖很慢**
-`Dockerfile` 构建阶段已默认使用阿里云 Maven 镜像（`https://maven.aliyun.com/repository/public`），依赖会缓存在镜像层，后续只改代码不会重复下载。如需换回官方仓库：
+**首次构建下载 Maven 依赖很慢 / 每次部署都重新下载**
+`Dockerfile` 构建阶段默认走阿里云 Maven 镜像，并且用 BuildKit 缓存挂载把 Maven 本地仓库持久化在构建缓存里：
+
+- 只改 Java/前端代码：依赖层直接命中缓存，不会重新下载
+- 改 `pom.xml`：只补下新增依赖，已有依赖继续用缓存
+- 只有第一次构建、或手动清理过构建缓存，才会完整下载
+
+`deploy.sh` 已强制 `DOCKER_BUILDKIT=1`。**不要执行 `docker builder prune` 或 `docker system prune`**，它们会清空这层缓存；磁盘清理用 `docker image prune -f` 即可（只删悬空镜像，不影响构建缓存）。如需换回官方 Maven 仓库：
 
 ```bash
 docker build --build-arg MAVEN_MIRROR_URL=https://repo.maven.apache.org/maven2 -t test-agent:1.0.0 .
 ```
 
+如果连构建都不想跑，可以本地构建后推到阿里云 ACR，服务器 `.env` 填 `APP_IMAGE` 只拉镜像（见上文 ACR 小节）。
+
 **系统盘越来越满**
-数据库命名卷在 `/var/lib/docker`。可把 Docker 数据目录迁到数据盘（`/etc/docker/daemon.json` 设置 `data-root`），或定期执行 `docker system prune` 清理无用镜像。
+数据库命名卷在 `/var/lib/docker`。可把 Docker 数据目录迁到数据盘（`/etc/docker/daemon.json` 设置 `data-root`）。日常清理用 `docker image prune -f`；`docker builder prune` 会清空 Maven 依赖缓存，非必要不要执行。

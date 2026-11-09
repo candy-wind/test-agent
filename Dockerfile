@@ -18,10 +18,13 @@ RUN mkdir -p /root/.m2 && \
 
 # 先只拷 pom，依赖层可以复用缓存；改代码时不必重新下载依赖
 COPY pom.xml ./
-RUN mvn -B -DskipTests dependency:go-offline
+# BuildKit 缓存挂载：Maven 本地仓库跨构建保留，改 pom 时也只补下新增依赖
+RUN --mount=type=cache,target=/root/.m2/repository \
+    mvn -B -DskipTests dependency:go-offline
 
 COPY src ./src
-RUN mvn -B -DskipTests clean package
+RUN --mount=type=cache,target=/root/.m2/repository \
+    mvn -B -DskipTests clean package
 
 # ---------- 运行阶段（仅 JRE，体积更小） ----------
 FROM eclipse-temurin:25-jre

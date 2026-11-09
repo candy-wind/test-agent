@@ -169,6 +169,9 @@ if command -v mountpoint >/dev/null 2>&1 && ! mountpoint -q /mnt; then
 fi
 
 # ---------- 4. 构建并启动 ----------
+# 强制 BuildKit，Dockerfile 里的 Maven 依赖缓存才会生效
+export DOCKER_BUILDKIT=1
+
 if [ -n "$APP_IMAGE" ]; then
   log "使用预构建镜像：${APP_IMAGE}"
   "${DOCKER[@]}" compose -f "$COMPOSE_FILE" pull app
@@ -192,9 +195,6 @@ if [ "$status" != "healthy" ]; then
   "${DOCKER[@]}" compose -f "$COMPOSE_FILE" logs --tail=80 app || true
   err "部署未完成，请根据上面的日志排查（常见：数据库密码不一致、端口被占用、内存不足）"
 fi
-
-# 清理构建产生的悬空镜像，避免系统盘被旧层占满
-"${DOCKER[@]}" image prune -f >/dev/null 2>&1 || true
 
 log "部署完成"
 printf '  访问地址：http://<服务器公网IP>:%s\n' "$APP_PORT"
