@@ -7,6 +7,7 @@ import jakarta.servlet.ServletRequest;
 import jakarta.servlet.ServletResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -16,14 +17,16 @@ import vip.mate.agent.controller.AuthController;
 import java.io.IOException;
 
 /**
- * 鉴权过滤器：未登录时
- *   - /api/*  返回 401 JSON
- *   - 其他页面  重定向到 /login.html
+ * 鉴权过滤器：未登录时 /api/* 返回 401、其它页面重定向登录页。
+ * 鉴权通过后把真实身份与工作空间写入 WorkspaceContext，供服务层做数据隔离。
  */
 @Slf4j
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)
+@RequiredArgsConstructor
 public class AuthFilter implements Filter {
+
+    private final AuthSessionRegistry sessionRegistry;
 
     @Override
     public void doFilter(ServletRequest req, ServletResponse res, FilterChain chain)
@@ -31,22 +34,15 @@ public class AuthFilter implements Filter {
         HttpServletRequest request = (HttpServletRequest) req;
         HttpServletResponse response = (HttpServletResponse) res;
         String path = request.getRequestURI();
-        String method = request.getMethod();
 
-        // 放行：登录页/接口、静态登录页、favicon 等
-        if (path.equals("/login") || path.equals("/login.html")
-                || path.equals("/api/auth/login") || path.equals("/api/auth/logout")
-                || path.startsWith("/favicon")
-                || path.endsWith(".ico") || path.endsWith(".css")) {
+        if (isPublic(path)) {
             chain.doFilter(req, res);
             return;
         }
 
         String token = AuthController.extractToken(request);
-        AuthController.TokenInfo info = AuthController.verify(token);
-        if (info == null) {
-            log.debug("鉴权失败 [{}] {} -> {}", method, path,
-                    path.startsWith("/api/") ? "401" : "redirect to /login.html");
+        AuthSessionRegistry.Session session = sessionRegistry.verify(token);
+        if (session == null) {
             if (path.startsWith("/api/")) {
                 response.setStatus(401);
                 response.setContentType("application/json;charset=UTF-8");
@@ -56,7 +52,20 @@ public class AuthFilter implements Filter {
             }
             return;
         }
-        log.trace("鉴权通过 [{}] {} user={}", method, path, info.getUsername());
-        chain.doFilter(req, res);
+
+        WorkspaceContext.set(new WorkspaceContext.Identity(
+                session.username(), session.userId(), session.workspaceId()));
+        try {
+            chain.doFilter(req, res);
+        } finally {
+            WorkspaceContext.clear();
+        }
+    }
+
+    private boolean isPublic(String path) {
+        return path.equals("/login") || path.equals("/login.html")
+                || path.equals("/api/auth/login") || path.equals("/api/auth/logout")
+                || path.equals("/favicon.ico")
+                || path.endsWith(".ico") || path.endsWith(".css");
     }
 }

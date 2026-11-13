@@ -11,6 +11,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -33,6 +34,7 @@ public class SearchServiceImpl implements SearchService {
 
     private final HttpClient httpClient = HttpClient.newBuilder()
             .followRedirects(HttpClient.Redirect.ALWAYS)
+            .connectTimeout(Duration.ofSeconds(5))
             .build();
 
     @Override
@@ -43,6 +45,7 @@ public class SearchServiceImpl implements SearchService {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(SEARCH_URL + encodedQuery))
                     .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                    .timeout(Duration.ofSeconds(10))
                     .GET()
                     .build();
 

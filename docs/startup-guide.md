@@ -169,7 +169,12 @@ $env:DB_PASSWORD = "你的密码"
 | --- | --- |
 | `DB_URL` | 数据库连接（`jdbc:postgresql://localhost:5432/test_agent`） |
 | `DB_USERNAME` / `DB_PASSWORD` | 数据库账号密码（`postgres` / `postgres`） |
-| `APP_SECRET_KEY` | 模型 API Key 的加密密钥（**生产必须设置**，默认 `dev-only-change-me`） |
+| `APP_SECRET_KEY` | 模型 API Key 的加密主密钥（**未设置会拒绝启动**；本地可设 `PLATFORM_ALLOW_DEV_SECRET=true` 降级） |
+| `AUTH_USERNAME` / `AUTH_PASSWORD` | 登录账号与明文口令（默认账号 `admin`，无内置口令） |
+| `AUTH_PASSWORD_HASH` | 直接提供 BCrypt 哈希，优先于 `AUTH_PASSWORD` |
+| `AUTH_COOKIE_SECURE` | HTTPS 部署设为 `true`；纯 HTTP 必须保持 `false` |
+| `OUTBOUND_ALLOW_PRIVATE_HOSTS` | 本地 Ollama/vLLM 需设为 `true`，默认拒绝所有内网地址 |
+| `OUTBOUND_ALLOWED_HOSTS` | 出站域名白名单，逗号分隔，支持 `*.example.com` |
 | `KB_STORAGE_DIR` | 知识库上传文件目录（`./data/kb`） |
 | `KB_VECTORIZATION_ENABLED` | 是否启用知识库向量化（默认 `false`） |
 | `APIZERO_API_KEY` | 极数本源票房接口的 API Key（匿名额度用尽后必须配置） |
@@ -205,13 +210,19 @@ $env:DB_PASSWORD = "你的密码"
 | 模型配置 | <http://localhost:8080/platform.html> |
 | 登录页 | <http://localhost:8080/login.html> |
 
-默认登录账号（`auth.username` / `auth.password`）：
+默认登录账号 `AUTH_USERNAME`（默认 `admin`）。**不再提供内置弱口令**，口令来源如下：
 
-```text
-admin / admin123
-```
+| 方式 | 说明 |
+| --- | --- |
+| `AUTH_PASSWORD_HASH` | BCrypt 哈希，优先级最高，适合生产 |
+| `AUTH_PASSWORD` | 明文口令，应用启动时自动做 BCrypt 哈希后写入 `sys_user` |
+| 都不设置 | 启动日志打印一次性随机口令，每次重启都会重新生成 |
 
-> 这是演示账号，生产环境请替换为真实认证方式。
+使用 `start.ps1` 启动最省事：脚本会在 `%LOCALAPPDATA%\test-agent\` 下生成并持久化
+`dev-secret.txt`（加密主密钥）和 `dev-password.txt`（登录口令），启动时把账号口令打印在控制台。
+同一份密钥会一直复用，避免重启后数据库里已加密的 API Key 无法解密。
+
+> 生产部署请用 [deploy-aliyun.md](deploy-aliyun.md) 的一键脚本，它会把随机口令写入 `.env` 并提示备份。
 
 ---
 
@@ -327,6 +338,35 @@ docker compose up -d
 ### 页面被浏览器缓存
 
 静态资源已配置 `no-cache`，仍异常时强制刷新（`Ctrl+F5`）或清缓存。
+
+### 启动报「未配置 APP_SECRET_KEY」
+
+加密主密钥现在必须显式提供，不再有可用的默认密钥。推荐用 `start.ps1`（自动生成本地密钥）；
+直接运行 `mvn spring-boot:run` 或 IDE 启动时，先设置：
+
+```powershell
+$env:APP_SECRET_KEY = "至少32位的随机字符串"
+# 或仅本地调试时临时降级：
+$env:PLATFORM_ALLOW_DEV_SECRET = "true"
+```
+
+> 已有数据的情况下**不要更换** `APP_SECRET_KEY`，否则库中已加密的模型 Key / 票房 Key 全部无法解密。
+
+### 忘记登录口令
+
+用 `start.ps1` 启动的直接看控制台输出，或读取 `%LOCALAPPDATA%\test-agent\dev-password.txt`；
+未使用该脚本且未设置环境变量时，口令会在应用启动日志中以醒目 WARN 打印，且重启后变化。
+需要固定口令就设置 `AUTH_PASSWORD`（或 `AUTH_PASSWORD_HASH`）。连续 5 次登录失败会锁定 15 分钟。
+
+### 配置本地 Ollama / vLLM 被拒绝
+
+出站地址默认禁止解析到内网/保留地址（防 SSRF）。本地模型服务请显式放开：
+
+```powershell
+$env:OUTBOUND_ALLOW_PRIVATE_HOSTS = "true"
+# 或只放行指定域名：
+$env:OUTBOUND_ALLOWED_HOSTS = "api.deepseek.com,*.openai.com"
+```
 
 ---
 

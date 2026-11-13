@@ -3,6 +3,12 @@
 > 基于 test-agent 演进的自建 Agent 基础平台
 > 版本：v0.1（2026-11-05）
 > 技术路线：Spring Boot 3.5 + Spring AI + PostgreSQL 16 + pgvector + 原生前端
+>
+> **阅读提示**：本文是平台演进的**设计稿/路线图**，不是当前实现说明。第 2 节「现状评估」
+> 描述的是改造前的状态；认证、密钥管理、出站防护、审计等 P0 项已按本文方向部分落地
+> （仍保留自研 OpenAI 兼容客户端与内存会话，尚未引入 Spring Security / Spring AI / MCP）。
+> 实际配置、登录方式与部署步骤请以 [startup-guide.md](startup-guide.md)
+> 和 [deploy-aliyun.md](deploy-aliyun.md) 为准。
 
 ---
 

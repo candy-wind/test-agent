@@ -7,6 +7,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vip.mate.agent.config.AgentProperties;
+import vip.mate.agent.config.OutboundUrlGuard;
+import vip.mate.agent.platform.common.AuditLogService;
 import vip.mate.agent.platform.common.CryptoService;
 import vip.mate.agent.platform.model.dto.ModelEndpoint;
 import vip.mate.agent.platform.model.dto.ModelRequest;
@@ -49,6 +51,8 @@ public class ModelConfigService {
     private final AiModelRouteRepository routeRepository;
     private final WorkspaceService workspaceService;
     private final CryptoService cryptoService;
+    private final OutboundUrlGuard outboundUrlGuard;
+    private final AuditLogService auditLogService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -74,36 +78,44 @@ public class ModelConfigService {
                     throw new IllegalArgumentException("供应商名称已存在: " + request.name());
                 });
 
+        String baseUrl = checkBaseUrl(request.baseUrl());
         Instant now = Instant.now();
         AiProvider provider = AiProvider.builder()
                 .workspaceId(workspaceId)
                 .name(request.name().trim())
                 .type(normalizeType(request.type()))
-                .baseUrl(trimTrailingSlash(request.baseUrl()))
+                .baseUrl(baseUrl)
                 .apiKeyCipher(cryptoService.encrypt(request.apiKey()))
                 .headersJson(request.headers())
                 .enabled(request.enabled() == null || request.enabled())
                 .createdAt(now)
                 .updatedAt(now)
                 .build();
-        return toView(providerRepository.save(provider));
+        AiProvider saved = providerRepository.save(provider);
+        auditLogService.record("PROVIDER_CREATE", "AI_PROVIDER", String.valueOf(saved.getId()),
+                "name=" + saved.getName() + ", baseUrl=" + saved.getBaseUrl());
+        return toView(saved);
     }
 
     @Transactional
     public ProviderView updateProvider(Long id, ProviderRequest request) {
         AiProvider provider = requireProvider(id);
-        Long workspaceId = provider.getWorkspaceId();
-        providerRepository.findByWorkspaceIdAndName(workspaceId, request.name())
-                .filter(other -> !other.getId().equals(id))
-                .ifPresent(other -> {
-                    throw new IllegalArgumentException("供应商名称已存在: " + request.name());
-                });
-
-        provider.setName(request.name().trim());
+        Long workspaceId = workspaceService.defaultWorkspaceId();
+        if (request.name() != null && !request.name().isBlank()) {
+            final Long providerId = id;
+            providerRepository.findByWorkspaceIdAndName(workspaceId, request.name().trim())
+                    .filter(other -> !other.getId().equals(providerId))
+                    .ifPresent(other -> {
+                        throw new IllegalArgumentException("供应商名称已存在: " + request.name());
+                    });
+            provider.setName(request.name().trim());
+        }
         if (request.type() != null && !request.type().isBlank()) {
             provider.setType(normalizeType(request.type()));
         }
-        provider.setBaseUrl(trimTrailingSlash(request.baseUrl()));
+        if (request.baseUrl() != null && !request.baseUrl().isBlank()) {
+            provider.setBaseUrl(checkBaseUrl(request.baseUrl()));
+        }
         if (request.apiKey() != null && !request.apiKey().isBlank()) {
             provider.setApiKeyCipher(cryptoService.encrypt(request.apiKey()));
         }
@@ -114,19 +126,25 @@ public class ModelConfigService {
             provider.setEnabled(request.enabled());
         }
         provider.setUpdatedAt(Instant.now());
-        return toView(providerRepository.save(provider));
+        AiProvider saved = providerRepository.save(provider);
+        auditLogService.record("PROVIDER_UPDATE", "AI_PROVIDER", String.valueOf(id),
+                "name=" + saved.getName() + ", baseUrl=" + saved.getBaseUrl());
+        return toView(saved);
     }
 
     @Transactional
     public void deleteProvider(Long id) {
         requireProvider(id);
         providerRepository.deleteById(id);
+        auditLogService.record("PROVIDER_DELETE", "AI_PROVIDER", String.valueOf(id), "删除供应商");
     }
 
     @Transactional(readOnly = true)
     public TestResult testProvider(Long id) {
         AiProvider provider = requireProvider(id);
-        String url = trimTrailingSlash(provider.getBaseUrl()) + "/models";
+        String base = trimTrailingSlash(provider.getBaseUrl());
+        outboundUrlGuard.assertAllowed(base);
+        String url = base + "/models";
         long start = System.nanoTime();
         try {
             HttpRequest.Builder builder = HttpRequest.newBuilder()
@@ -142,7 +160,8 @@ public class ModelConfigService {
                     builder.build(), HttpResponse.BodyHandlers.ofString());
             long latency = (System.nanoTime() - start) / 1_000_000;
             boolean ok = response.statusCode() >= 200 && response.statusCode() < 300;
-            String message = ok ? "连接成功" : truncate(response.body(), 300);
+            String message = ok ? "连接成功"
+                    : "HTTP " + response.statusCode() + "：" + truncate(response.body(), 120);
             return new TestResult(ok, latency, response.statusCode(), message);
         } catch (Exception e) {
             long latency = (System.nanoTime() - start) / 1_000_000;
@@ -184,15 +203,21 @@ public class ModelConfigService {
                 .createdAt(now)
                 .updatedAt(now)
                 .build();
-        return toView(modelRepository.save(model));
+        AiModel saved = modelRepository.save(model);
+        auditLogService.record("MODEL_CREATE", "AI_MODEL", String.valueOf(saved.getId()),
+                "providerId=" + providerId + ", modelKey=" + saved.getModelKey());
+        return toView(saved);
     }
 
     @Transactional
     public ModelView updateModel(Long id, ModelRequest request) {
-        AiModel model = modelRepository.findById(id)
-                .orElseThrow(() -> new NoSuchElementException("模型不存在: " + id));
-
+        AiModel model = requireModel(id);
         requireValidModelKey(request.modelKey());
+        modelRepository.findByProviderIdAndModelKey(model.getProviderId(), request.modelKey().trim())
+                .filter(other -> !other.getId().equals(id))
+                .ifPresent(other -> {
+                    throw new IllegalArgumentException("模型已存在: " + request.modelKey());
+                });
         model.setModelKey(request.modelKey().trim());
         if (request.displayName() != null && !request.displayName().isBlank()) {
             model.setDisplayName(request.displayName().trim());
@@ -208,15 +233,17 @@ public class ModelConfigService {
             model.setEnabled(request.enabled());
         }
         model.setUpdatedAt(Instant.now());
-        return toView(modelRepository.save(model));
+        AiModel saved = modelRepository.save(model);
+        auditLogService.record("MODEL_UPDATE", "AI_MODEL", String.valueOf(id),
+                "modelKey=" + saved.getModelKey());
+        return toView(saved);
     }
 
     @Transactional
     public void deleteModel(Long id) {
-        if (!modelRepository.existsById(id)) {
-            throw new NoSuchElementException("模型不存在: " + id);
-        }
+        requireModel(id);
         modelRepository.deleteById(id);
+        auditLogService.record("MODEL_DELETE", "AI_MODEL", String.valueOf(id), "删除模型");
     }
 
     // ==================== 用途路由 ====================
@@ -235,8 +262,7 @@ public class ModelConfigService {
         if (!ROUTE_PURPOSES.contains(normalizedPurpose)) {
             throw new IllegalArgumentException("不支持的用途: " + purpose);
         }
-        AiModel model = modelRepository.findById(modelId)
-                .orElseThrow(() -> new NoSuchElementException("模型不存在: " + modelId));
+        AiModel model = requireModel(modelId);
 
         Long workspaceId = workspaceService.defaultWorkspaceId();
         AiModelRoute route = routeRepository.findByWorkspaceIdAndPurpose(workspaceId, normalizedPurpose)
@@ -245,7 +271,10 @@ public class ModelConfigService {
                         .purpose(normalizedPurpose)
                         .build());
         route.setModelId(model.getId());
-        return toRouteView(routeRepository.save(route));
+        AiModelRoute saved = routeRepository.save(route);
+        auditLogService.record("ROUTE_UPDATE", "AI_MODEL_ROUTE", normalizedPurpose,
+                "purpose=" + normalizedPurpose + ", modelId=" + model.getId());
+        return toRouteView(saved);
     }
 
     // ==================== 对话桥接 ====================
@@ -270,8 +299,9 @@ public class ModelConfigService {
             return null;
         }
 
+        String baseUrl = checkBaseUrl(provider.getBaseUrl());
         AgentProperties.ProviderConfig config = new AgentProperties.ProviderConfig();
-        config.setBaseUrl(provider.getBaseUrl());
+        config.setBaseUrl(baseUrl);
         config.setApiKey(cryptoService.decrypt(provider.getApiKeyCipher()));
         config.setChatModel(chatModel);
         config.setVisionModel(pickModel(models, "VISION"));
@@ -291,7 +321,7 @@ public class ModelConfigService {
         }
         List<AiModel> models = modelRepository.findByProviderIdOrderByIdAsc(endpoint.providerId());
         AgentProperties.ProviderConfig config = new AgentProperties.ProviderConfig();
-        config.setBaseUrl(endpoint.baseUrl());
+        config.setBaseUrl(checkBaseUrl(endpoint.baseUrl()));
         config.setApiKey(endpoint.apiKey());
         config.setChatModel(endpoint.modelKey());
         config.setVisionModel(pickModel(models, "VISION"));
@@ -320,10 +350,16 @@ public class ModelConfigService {
         if (provider == null || !Boolean.TRUE.equals(provider.getEnabled())) {
             return null;
         }
+        if (!workspaceId.equals(provider.getWorkspaceId())) {
+            log.warn("[model-resolve] 路由指向了其它空间的供应商，已忽略: purpose={} providerId={}",
+                    normalized, provider.getId());
+            return null;
+        }
+        String baseUrl = checkBaseUrl(provider.getBaseUrl());
         return new ModelEndpoint(
                 provider.getId(),
                 provider.getName(),
-                trimTrailingSlash(provider.getBaseUrl()),
+                baseUrl,
                 cryptoService.decrypt(provider.getApiKeyCipher()),
                 model.getModelKey()
         );
@@ -331,9 +367,29 @@ public class ModelConfigService {
 
     // ==================== 内部方法 ====================
 
+    /** 供应商必须属于当前空间，避免通过 id 越权读写其它空间的配置。 */
     private AiProvider requireProvider(Long id) {
-        return providerRepository.findById(id)
+        AiProvider provider = providerRepository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("供应商不存在: " + id));
+        if (!workspaceService.defaultWorkspaceId().equals(provider.getWorkspaceId())) {
+            throw new NoSuchElementException("供应商不存在: " + id);
+        }
+        return provider;
+    }
+
+    /** 模型必须挂在当前空间的供应商下。 */
+    private AiModel requireModel(Long id) {
+        AiModel model = modelRepository.findById(id)
+                .orElseThrow(() -> new NoSuchElementException("模型不存在: " + id));
+        requireProvider(model.getProviderId());
+        return model;
+    }
+
+    /** 保存/读取历史配置时都做一次出站地址校验，防止直连内网或元数据服务。 */
+    private String checkBaseUrl(String rawUrl) {
+        String base = trimTrailingSlash(rawUrl);
+        outboundUrlGuard.assertAllowed(base);
+        return base;
     }
 
     /**

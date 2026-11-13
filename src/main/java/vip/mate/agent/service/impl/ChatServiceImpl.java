@@ -9,6 +9,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import vip.mate.agent.config.AgentProperties;
+import vip.mate.agent.config.OutboundUrlGuard;
+import vip.mate.agent.config.WorkspaceContext;
 import vip.mate.agent.dto.ChatMessage;
 import vip.mate.agent.dto.ChatRequest;
 import vip.mate.agent.dto.ChatResponse;
@@ -20,7 +22,6 @@ import vip.mate.agent.service.tool.ToolRegistry;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
-import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -43,6 +44,7 @@ public class ChatServiceImpl implements ChatService {
     private final SearchService searchService;
     private final ToolRegistry toolRegistry;
     private final ProviderConfigResolver providerConfigResolver;
+    private final OutboundUrlGuard outboundUrlGuard;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private final HttpClient httpClient = HttpClient.newBuilder()
@@ -147,7 +149,7 @@ public class ChatServiceImpl implements ChatService {
     public SseEmitter chatStream(ChatRequest request) {
         SseEmitter emitter = new SseEmitter(300_000L);
 
-        executor.execute(() -> {
+        executor.execute(WorkspaceContext.wrap(() -> {
             try {
                 AgentProperties.ProviderConfig provider = resolveProvider(request);
                 String model = resolveModel(provider, request);
@@ -244,7 +246,7 @@ public class ChatServiceImpl implements ChatService {
                 }
                 emitter.completeWithError(e);
             }
-        });
+        }));
 
         return emitter;
     }
@@ -420,7 +422,7 @@ public class ChatServiceImpl implements ChatService {
 
     private HttpRequest buildHttpRequest(AgentProperties.ProviderConfig provider, String body) {
         HttpRequest.Builder builder = HttpRequest.newBuilder()
-                .uri(URI.create(provider.getBaseUrl() + "/chat/completions"))
+                .uri(outboundUrlGuard.requireAllowed(provider.getBaseUrl() + "/chat/completions"))
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(body))
                 .timeout(Duration.ofSeconds(60));

@@ -107,7 +107,7 @@ bash deploy.sh
 
 1. 把仓库克隆到 `~/test-agent`；已存在则 `git fetch` 并强制对齐到 `origin/master`
 2. 检查 Docker / Compose 插件，当前用户无权限时自动改用 sudo
-3. 首次运行自动生成 `.env`：随机数据库密码 + 随机 `APP_SECRET_KEY`
+3. 首次运行自动生成 `.env`：随机数据库密码 + 随机 `APP_SECRET_KEY` + 随机管理员口令
 4. 创建 `/mnt/logs/test-agent`、`/mnt/test-agent/{kb,uploads}` 并设置 uid 10001
 5. 执行 `docker compose -f docker-compose.prod.yml up -d --build`
 6. 轮询健康检查，失败时自动打印应用日志
@@ -128,7 +128,7 @@ sudo mkdir -p /opt/test-agent && sudo chown "$USER" /opt/test-agent
 DEPLOY_DIR=/opt/test-agent bash deploy.sh
 ```
 
-> 首次部署完成后，务必把 `.env` 备份到本地。里面的 `APP_SECRET_KEY` 一旦更换，数据库里已保存的模型 Key、票房 Key 将全部无法解密。
+> 首次部署完成后，务必把 `.env` 备份到本地。里面的 `APP_SECRET_KEY` 一旦更换，数据库里已保存的模型 Key、票房 Key 将全部无法解密；`AUTH_PASSWORD` 是登录口令，同样需要留存。
 >
 > 想自己指定数据库密码时，先在代码目录把 `.env.example` 复制为 `.env` 并改好 `DB_PASSWORD`，再执行 `./deploy.sh`；脚本不会覆盖已有值。
 
@@ -140,7 +140,7 @@ DEPLOY_DIR=/opt/test-agent bash deploy.sh
 
 - 访问 `http://<公网IP>:8080`
 - 应用日志：`docker compose -f docker-compose.prod.yml logs -f app`，或文件日志 `tail -f /mnt/logs/test-agent/app.log`
-- 登录账号仍为 `admin / admin123`（`application.yml` 中的演示配置，上线前建议改掉）
+- 登录账号 `AUTH_USERNAME`（默认 `admin`），口令是首次部署生成的 `AUTH_PASSWORD`，见 `.env`；部署完成的日志也会打印一次。项目不再包含任何内置弱口令。
 
 以后改了代码并 push 到 GitHub，服务器上只需要：
 
@@ -313,3 +313,24 @@ docker build --build-arg MAVEN_MIRROR_URL=https://repo.maven.apache.org/maven2 -
 
 **系统盘越来越满**
 数据库命名卷在 `/var/lib/docker`。可把 Docker 数据目录迁到数据盘（`/etc/docker/daemon.json` 设置 `data-root`）。日常清理用 `docker image prune -f`；`docker builder prune` 会清空 Maven 依赖缓存，非必要不要执行。
+
+**忘记管理员口令 / 想改口令**
+
+```bash
+grep '^AUTH_PASSWORD' ~/test-agent/.env
+# 修改后重建应用容器使新口令生效（sys_user 中的 BCrypt 哈希会在启动时同步）
+cd ~/test-agent && docker compose -f docker-compose.prod.yml up -d --force-recreate app
+```
+
+也可以通过 `AUTH_PASSWORD_HASH` 直接提供 BCrypt 哈希，避免明文口令落盘。
+
+**上了 HTTPS（Nginx + 证书）之后登录不了**
+
+在 `.env` 中设置 `AUTH_COOKIE_SECURE=true` 并重建应用：Cookie 会带上 `Secure` 属性。
+反过来，纯 HTTP 访问时必须保持 `false`，否则浏览器不会回传会话 Cookie。
+
+**模型服务地址是内网 / 本地 Ollama**
+
+应用默认拒绝 `baseUrl` 指向内网或云元数据地址（SSRF 防护）。确需访问内网模型服务时，
+在 `.env` 设置 `OUTBOUND_ALLOW_PRIVATE_HOSTS=true`，或用 `OUTBOUND_ALLOWED_HOSTS` 精确放行域名，
+然后重建应用容器。

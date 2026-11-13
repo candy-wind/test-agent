@@ -11,6 +11,7 @@ import vip.mate.agent.platform.knowledge.dto.DocumentView;
 import vip.mate.agent.platform.knowledge.dto.KbRequest;
 import vip.mate.agent.platform.knowledge.dto.KbView;
 import vip.mate.agent.platform.knowledge.dto.SearchResult;
+import vip.mate.agent.platform.common.AuditLogService;
 import vip.mate.agent.platform.model.ModelConfigService;
 import vip.mate.agent.platform.model.dto.ModelEndpoint;
 import vip.mate.agent.platform.workspace.WorkspaceService;
@@ -50,6 +51,7 @@ public class KnowledgeBaseService {
     private final VectorStore vectorStore;
     private final WorkspaceService workspaceService;
     private final ModelConfigService modelConfigService;
+    private final AuditLogService auditLogService;
 
     @Value("${platform.knowledge.storage-dir:./data/kb}")
     private String storageDir;
@@ -102,7 +104,10 @@ public class KnowledgeBaseService {
                 .status("ACTIVE")
                 .createdAt(Instant.now())
                 .build();
-        return toView(kbRepository.save(kb), embeddingRouteText());
+        KbKnowledgeBase saved = kbRepository.save(kb);
+        auditLogService.record("KB_CREATE", "KB_KNOWLEDGE_BASE", String.valueOf(saved.getId()),
+                "name=" + saved.getName());
+        return toView(saved, embeddingRouteText());
     }
 
     @Transactional
@@ -123,6 +128,7 @@ public class KnowledgeBaseService {
         documentRepository.deleteByKbId(kb.getId());
         kbRepository.deleteById(kb.getId());
         deleteStoredDirectory(kb);
+        auditLogService.record("KB_DELETE", "KB_KNOWLEDGE_BASE", String.valueOf(id), "删除知识库");
     }
 
     // ==================== 文档 ====================
@@ -143,10 +149,7 @@ public class KnowledgeBaseService {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("请选择要上传的文件");
         }
-        String originalName = file.getOriginalFilename();
-        if (originalName == null || originalName.isBlank()) {
-            originalName = "未命名文档";
-        }
+        String originalName = sanitizeFileName(file.getOriginalFilename());
         byte[] bytes;
         try {
             bytes = file.getBytes();
@@ -154,7 +157,8 @@ public class KnowledgeBaseService {
             throw new IllegalArgumentException("读取上传文件失败: " + e.getMessage(), e);
         }
 
-        String text = textExtractor.extract(originalName, file.getContentType(), bytes);
+        // 不信任客户端提交的 Content-Type：类型完全由净化后的扩展名决定
+        String text = textExtractor.extract(originalName, null, bytes);
         String objectKey = storeFile(kb, originalName, bytes);
 
         KbDocument document = KbDocument.builder()
@@ -163,7 +167,7 @@ public class KnowledgeBaseService {
                 .name(originalName)
                 .sourceType("UPLOAD")
                 .objectKey(objectKey)
-                .mime(file.getContentType())
+                .mime(guessMime(originalName))
                 .size((long) bytes.length)
                 .checksum(sha256(bytes))
                 .status(KbDocument.STATUS_PENDING)
@@ -221,6 +225,8 @@ public class KnowledgeBaseService {
         chunkRepository.deleteByDocumentId(documentId);
         documentRepository.deleteById(documentId);
         deleteStoredFile(document);
+        auditLogService.record("KB_DOCUMENT_DELETE", "KB_DOCUMENT", String.valueOf(documentId),
+                "name=" + document.getName());
     }
 
     @Transactional(readOnly = true)
@@ -344,6 +350,13 @@ public class KnowledgeBaseService {
                     + "（片段 #" + r.seq() + "，" + match + "）\n"
                     + r.content() + "\n";
             if (sb.length() + block.length() > maxContextChars) {
+                // 首个资料就超长时也要放入截断后的内容，避免"命中却提示没有资料"
+                int remaining = maxContextChars - sb.length();
+                if (sb.length() == 0) {
+                    sb.append(block, 0, Math.min(block.length(), maxContextChars));
+                } else if (remaining > 0) {
+                    sb.append(block, 0, Math.min(block.length(), remaining));
+                }
                 break;
             }
             sb.append(block);
@@ -436,7 +449,17 @@ public class KnowledgeBaseService {
         }
         try {
             Path root = Paths.get(storageDir).toAbsolutePath().normalize();
-            Files.deleteIfExists(root.resolve(document.getObjectKey()).normalize());
+            Path target = root.resolve(document.getObjectKey()).normalize();
+            // objectKey 来自数据库，若被篡改可能包含 ../，必须确认解析后仍在根目录内
+            if (!target.startsWith(root) || target.equals(root)) {
+                log.warn("[kb] 拒绝删除越界路径: {}", document.getObjectKey());
+                return;
+            }
+            if (Files.exists(target) && !Files.isRegularFile(target)) {
+                log.warn("[kb] 拒绝删除非文件对象: {}", document.getObjectKey());
+                return;
+            }
+            Files.deleteIfExists(target);
         } catch (Exception e) {
             log.warn("[kb] 删除原文件失败: {}", document.getObjectKey(), e);
         }
@@ -470,6 +493,37 @@ public class KnowledgeBaseService {
         } catch (Exception e) {
             log.warn("[kb] 清理知识库向量失败: {}", kbId, e);
         }
+    }
+
+    /** 文件名只保留纯文件名部分，去掉路径与控制字符，避免路径注入与存储型 XSS 面。 */
+    private String sanitizeFileName(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return "未命名文档";
+        }
+        String value = raw.replace('\\', '/');
+        int slash = value.lastIndexOf('/');
+        if (slash >= 0) {
+            value = value.substring(slash + 1);
+        }
+        value = value.replaceAll("[\\p{Cntrl}<>\"']", "_").trim();
+        if (value.length() > 200) {
+            int dot = value.lastIndexOf('.');
+            value = dot > 0 && dot > value.length() - 20
+                    ? value.substring(0, 190) + value.substring(dot)
+                    : value.substring(0, 200);
+        }
+        return value.isBlank() ? "未命名文档" : value;
+    }
+
+    private String guessMime(String filename) {
+        String name = filename.toLowerCase(Locale.ROOT);
+        if (name.endsWith(".pdf")) return "application/pdf";
+        if (name.endsWith(".html") || name.endsWith(".htm")) return "text/html";
+        if (name.endsWith(".json")) return "application/json";
+        if (name.endsWith(".xml")) return "application/xml";
+        if (name.endsWith(".csv")) return "text/csv";
+        if (name.endsWith(".md") || name.endsWith(".markdown")) return "text/markdown";
+        return "text/plain";
     }
 
     private String extensionOf(String filename) {

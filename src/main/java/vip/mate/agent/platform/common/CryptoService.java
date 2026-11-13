@@ -26,13 +26,25 @@ public class CryptoService {
     private final SecretKeySpec key;
     private final SecureRandom random = new SecureRandom();
 
-    public CryptoService(@Value("${platform.secret-key:dev-only-change-me}") String secret) {
-        if ("dev-only-change-me".equals(secret)) {
-            log.warn("[crypto] 正在使用开发默认密钥，请通过 APP_SECRET_KEY 配置生产密钥");
+    public CryptoService(@Value("${platform.secret-key:}") String secret,
+                         @Value("${platform.allow-dev-secret:false}") boolean allowDevSecret) {
+        String effective = secret == null ? "" : secret.trim();
+        if (effective.isEmpty() || "dev-only-change-me".equals(effective)) {
+            if (!allowDevSecret) {
+                throw new IllegalStateException(
+                        "未配置 APP_SECRET_KEY：请设置环境变量 APP_SECRET_KEY（生成命令：openssl rand -base64 32）后重启。"
+                                + "已有数据务必沿用原密钥，否则库中已加密的 API Key 将无法解密。"
+                                + "仅本地开发可临时设置 PLATFORM_ALLOW_DEV_SECRET=true 降级。");
+            }
+            effective = "dev-only-change-me";
+            log.warn("[crypto] 正在使用开发默认密钥，严禁用于生产环境");
+        }
+        if (effective.length() < 16) {
+            throw new IllegalStateException("APP_SECRET_KEY 长度不足 16 位，请使用至少 32 位随机串");
         }
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256")
-                    .digest(secret.getBytes(StandardCharsets.UTF_8));
+                    .digest(effective.getBytes(StandardCharsets.UTF_8));
             this.key = new SecretKeySpec(digest, "AES");
         } catch (Exception e) {
             throw new IllegalStateException("初始化加密密钥失败", e);

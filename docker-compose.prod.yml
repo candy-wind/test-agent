@@ -45,6 +45,13 @@ services:
       DB_USERNAME: ${DB_USERNAME:-postgres}
       DB_PASSWORD: ${DB_PASSWORD:?请在 .env 中设置 DB_PASSWORD}
       APP_SECRET_KEY: ${APP_SECRET_KEY:?请在 .env 中设置 APP_SECRET_KEY}
+      AUTH_USERNAME: ${AUTH_USERNAME:-admin}
+      # 二选一：明文口令或 BCrypt 哈希；都为空时应用会生成一次性随机口令并打印到日志
+      AUTH_PASSWORD: ${AUTH_PASSWORD:-}
+      AUTH_PASSWORD_HASH: ${AUTH_PASSWORD_HASH:-}
+      AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-false}
+      OUTBOUND_ALLOWED_HOSTS: ${OUTBOUND_ALLOWED_HOSTS:-}
+      OUTBOUND_ALLOW_PRIVATE_HOSTS: ${OUTBOUND_ALLOW_PRIVATE_HOSTS:-false}
       LOG_DIR: /mnt/logs
       LOG_SERVICE_NAME: ${LOG_SERVICE_NAME:-test-agent}
       KB_STORAGE_DIR: /app/data/kb

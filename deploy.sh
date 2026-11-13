@@ -138,6 +138,16 @@ if [ -z "$(get_env APP_SECRET_KEY)" ]; then
   log "已生成 APP_SECRET_KEY 并写入 .env（请备份，更换后已保存的 API Key 将无法解密）"
 fi
 
+# 管理员不再有内置弱口令：首次部署生成随机口令，之后沿用 .env 中的值
+generated_auth_password=0
+if [ -z "$(get_env AUTH_PASSWORD)" ] && [ -z "$(get_env AUTH_PASSWORD_HASH)" ]; then
+  auth_password="$(openssl rand -base64 18 2>/dev/null | tr -d '\n' || head -c 18 /dev/urandom | base64 | tr -d '\n')"
+  [ -n "$auth_password" ] || err "无法生成管理员口令（缺少 openssl 或 /dev/urandom）"
+  set_env AUTH_PASSWORD "$auth_password"
+  generated_auth_password=1
+  log "已生成管理员登录口令并写入 .env"
+fi
+
 [ -n "$(get_env LOG_SERVICE_NAME)" ] || set_env LOG_SERVICE_NAME "test-agent"
 chmod 600 .env
 
@@ -145,6 +155,8 @@ LOG_SERVICE_NAME="$(get_env LOG_SERVICE_NAME)"
 LOG_SERVICE_NAME="${LOG_SERVICE_NAME:-test-agent}"
 APP_PORT="$(get_env APP_PORT)"
 APP_PORT="${APP_PORT:-8080}"
+AUTH_USERNAME="$(get_env AUTH_USERNAME)"
+AUTH_USERNAME="${AUTH_USERNAME:-admin}"
 APP_IMAGE="${APP_IMAGE:-$(get_env APP_IMAGE)}"
 
 # 新建 .env 但已有数据卷：数据库密码大概率对不上，提前提醒
@@ -198,6 +210,11 @@ fi
 
 log "部署完成"
 printf '  访问地址：http://<服务器公网IP>:%s\n' "$APP_PORT"
+if [ "$generated_auth_password" = "1" ]; then
+  printf '  登录账号/口令：%s / %s（请立即保存）\n' "$AUTH_USERNAME" "$(get_env AUTH_PASSWORD)"
+else
+  printf '  登录账号：%s，口令见 .env 中 AUTH_PASSWORD\n' "$AUTH_USERNAME"
+fi
 printf '  代码目录：%s\n' "$CODE_DIR"
 printf '  配置文件：%s/.env（请备份，内含数据库密码与 APP_SECRET_KEY）\n' "$CODE_DIR"
 printf '  日志文件：%s/%s/app.log\n' "$LOG_ROOT" "$LOG_SERVICE_NAME"

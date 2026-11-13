@@ -462,10 +462,8 @@ toggleBtn.addEventListener('click', () => {
 logoutBtn.addEventListener('click', () => {
     if (!confirm('确认退出登录?')) return;
     fetch('/api/auth/logout', {
-        method: 'POST',
-        headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('auth_token') || '') }
+        method: 'POST'
     }).finally(() => {
-        localStorage.removeItem('auth_token');
         location.href = '/login.html';
     });
 });

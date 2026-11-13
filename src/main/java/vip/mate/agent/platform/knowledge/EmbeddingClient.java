@@ -8,10 +8,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import vip.mate.agent.config.OutboundUrlGuard;
 import vip.mate.agent.platform.model.ModelConfigService;
 import vip.mate.agent.platform.model.dto.ModelEndpoint;
 
-import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -30,6 +30,7 @@ import java.util.List;
 public class EmbeddingClient {
 
     private final ModelConfigService modelConfigService;
+    private final OutboundUrlGuard outboundUrlGuard;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private final HttpClient httpClient = HttpClient.newBuilder()
@@ -76,7 +77,7 @@ public class EmbeddingClient {
             String body = objectMapper.writeValueAsString(root);
 
             HttpRequest.Builder builder = HttpRequest.newBuilder()
-                    .uri(URI.create(url))
+                    .uri(outboundUrlGuard.requireAllowed(url))
                     .timeout(Duration.ofSeconds(120))
                     .header("Content-Type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8));

@@ -29,9 +29,9 @@ spring:
       max-file-size: 20MB
       max-request-size: 20MB
   mvc:
-    log-request-details: true   # 打印请求参数明细
+    log-request-details: false  # 不打印请求参数明细，避免登录表单/口令落入日志
   http:
-    log-request-details: true
+    log-request-details: false
 
 logging:
   level:
@@ -73,17 +73,29 @@ boxoffice:
     cookie: ""   # 可选:浏览器登录猫眼专业版后复制的完整 Cookie
 
 auth:
-  # 登录账号（演示用，生产环境请替换并放加密配置）
-  username: admin
-  password: admin123
-  token-ttl-hours: 24
+  # 口令只从环境变量读取：AUTH_PASSWORD_HASH（BCrypt，推荐）或 AUTH_PASSWORD（明文）。
+  # 两者都未设置时，启动会生成一次性随机口令并打印在日志中，且不再有默认弱口令。
+  username: ${AUTH_USERNAME:admin}
+  password: ${AUTH_PASSWORD:}
+  password-hash: ${AUTH_PASSWORD_HASH:}
+  token-ttl-hours: ${AUTH_TOKEN_TTL_HOURS:24}
+  cookie-secure: ${AUTH_COOKIE_SECURE:false}
+  max-failed-attempts: ${AUTH_MAX_FAILED_ATTEMPTS:5}
+  lockout-minutes: ${AUTH_LOCKOUT_MINUTES:15}
 
 # 平台基础配置（P0）
 platform:
   bootstrap:
     enabled: true          # 首次启动自动初始化管理员/默认空间（模型配置请在页面添加）
-  # 用于加密数据库中的模型 API Key，生产环境必须通过 APP_SECRET_KEY 覆盖
-  secret-key: ${APP_SECRET_KEY:dev-only-change-me}
+  # 用于加密数据库中的模型 API Key。生产必须通过 APP_SECRET_KEY 设置；
+  # 未设置时启动直接失败，本地开发可显式设置 PLATFORM_ALLOW_DEV_SECRET=true 降级。
+  secret-key: ${APP_SECRET_KEY:}
+  allow-dev-secret: ${PLATFORM_ALLOW_DEV_SECRET:false}
+  # 出站地址防护：默认拒绝 baseUrl 指向内网/元数据地址，防止 SSRF。
+  # 本地 Ollama/vLLM 需设 OUTBOUND_ALLOW_PRIVATE_HOSTS=true，或只放行指定域名。
+  outbound:
+    allowed-hosts: ${OUTBOUND_ALLOWED_HOSTS:}
+    allow-private-hosts: ${OUTBOUND_ALLOW_PRIVATE_HOSTS:false}
   knowledge:
     # 是否启用向量化。false 时上传只做解析/切分，检索使用关键词匹配，不依赖 embedding 模型
     vectorization-enabled: ${KB_VECTORIZATION_ENABLED:false}

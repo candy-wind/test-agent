@@ -312,18 +312,14 @@
     <div class="toast" id="toast"></div>
 
 <script>
-const TOKEN_KEY = 'auth_token';
 const tbody = document.getElementById('tbody');
 const kwInput = document.getElementById('kw');
 const searchBtn = document.getElementById('searchBtn');
 const toast = document.getElementById('toast');
 
-function getToken() { return localStorage.getItem(TOKEN_KEY) || ''; }
+// 会话由 HttpOnly Cookie 携带，前端不再持有也不再存储 token
 function authHeaders() {
-    const h = { 'Content-Type': 'application/json' };
-    const t = getToken();
-    if (t) h['Authorization'] = 'Bearer ' + t;
-    return h;
+    return { 'Content-Type': 'application/json' };
 }
 function showToast(msg) {
     toast.textContent = msg;

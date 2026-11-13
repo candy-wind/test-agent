@@ -14,6 +14,14 @@ spring:
 platform:
   bootstrap:
     enabled: false
+  secret-key: test-only-secret-key-for-unit-tests
+  allow-dev-secret: true
+  outbound:
+    allow-private-hosts: true
+
+auth:
+  username: admin
+  password: test-password
 
 boxoffice:
   refresh-initial-delay-ms: 3600000

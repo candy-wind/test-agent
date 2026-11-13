@@ -2,13 +2,13 @@ package vip.mate.agent.platform.bootstrap;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import vip.mate.agent.config.AuthProperties;
 import vip.mate.agent.platform.model.AiProviderRepository;
 import vip.mate.agent.platform.workspace.SysUser;
 import vip.mate.agent.platform.workspace.SysUserRepository;
@@ -17,14 +17,16 @@ import vip.mate.agent.platform.workspace.SysWorkspaceMember;
 import vip.mate.agent.platform.workspace.SysWorkspaceMemberRepository;
 import vip.mate.agent.platform.workspace.SysWorkspaceRepository;
 
+import java.security.SecureRandom;
 import java.time.Instant;
+import java.util.Base64;
 
 /**
  * 首次启动初始化：
- * 1. 创建默认管理员（复用 auth.username/password）
- * 2. 创建默认工作空间与成员关系
+ * 1. 按环境变量创建/同步管理员（口令用 BCrypt 存 sys_user）
+ * 2. 创建默认工作空间与 OWNER 成员关系
  * <p>
- * 模型供应商与 API Key 不再从 application.yml 读取，统一在「模型配置」页面维护。
+ * 不再存在任何内置弱口令：未配置口令时生成一次性随机口令并打印在启动日志中。
  */
 @Slf4j
 @Component
@@ -36,20 +38,22 @@ public class PlatformBootstrap implements ApplicationRunner {
     private final SysWorkspaceRepository workspaceRepository;
     private final SysWorkspaceMemberRepository memberRepository;
     private final AiProviderRepository providerRepository;
-
-    @Value("${auth.username:admin}")
-    private String adminUsername;
-
-    @Value("${auth.password:admin123}")
-    private String adminPassword;
+    private final AuthProperties authProperties;
 
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
-        SysUser admin = userRepository.findByUsername(adminUsername)
-                .orElseGet(this::createAdmin);
+        String passwordHash = resolvePasswordHash();
+        String username = authProperties.getUsername();
+        SysUser admin = userRepository.findByUsername(username)
+                .map(existing -> {
+                    existing.setPasswordHash(passwordHash);
+                    existing.setStatus("ACTIVE");
+                    return userRepository.save(existing);
+                })
+                .orElseGet(() -> createAdmin(username, passwordHash));
 
         SysWorkspace workspace = workspaceRepository.findAllByOrderByIdAsc().stream()
                 .findFirst()
@@ -64,15 +68,45 @@ public class PlatformBootstrap implements ApplicationRunner {
                     .build());
         }
 
-        log.info("[bootstrap] 初始化完成: workspace={}({}) providerCount={}",
-                workspace.getName(), workspace.getId(), providerRepository.count());
+        log.info("[bootstrap] 初始化完成: user={} workspace={}({}) providerCount={}",
+                username, workspace.getName(), workspace.getId(), providerRepository.count());
     }
 
-    private SysUser createAdmin() {
-        log.info("[bootstrap] 创建默认管理员: {}", adminUsername);
+    /**
+     * 口令来源优先级：AUTH_PASSWORD_HASH（BCrypt）> AUTH_PASSWORD（明文）> 一次性随机口令。
+     * 生产环境应在 .env 中固定其中一个；随机口令每次重启都会变化。
+     */
+    private String resolvePasswordHash() {
+        String hash = authProperties.getPasswordHash();
+        if (hash != null && !hash.isBlank()) {
+            String trimmed = hash.trim();
+            if (!trimmed.startsWith("$2")) {
+                throw new IllegalStateException("AUTH_PASSWORD_HASH 不是有效的 BCrypt 哈希，"
+                        + "请改用 AUTH_PASSWORD=<明文> 或生成 BCrypt 哈希后再配置");
+            }
+            return trimmed;
+        }
+        String raw = authProperties.getPassword();
+        if (raw != null && !raw.isBlank()) {
+            return passwordEncoder.encode(raw);
+        }
+        byte[] bytes = new byte[24];
+        new SecureRandom().nextBytes(bytes);
+        String generated = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+        log.warn("\n==================== 管理员临时口令 ====================\n"
+                        + "  未配置 AUTH_PASSWORD / AUTH_PASSWORD_HASH，已生成一次性口令：\n"
+                        + "  账号: {}\n  口令: {}\n"
+                        + "  请设置环境变量固定口令；应用重启后该口令会重新生成。\n"
+                        + "=====================================================",
+                authProperties.getUsername(), generated);
+        return passwordEncoder.encode(generated);
+    }
+
+    private SysUser createAdmin(String username, String passwordHash) {
+        log.info("[bootstrap] 创建管理员: {}", username);
         return userRepository.save(SysUser.builder()
-                .username(adminUsername)
-                .passwordHash(passwordEncoder.encode(adminPassword))
+                .username(username)
+                .passwordHash(passwordHash)
                 .nickname("管理员")
                 .status("ACTIVE")
                 .createdAt(Instant.now())

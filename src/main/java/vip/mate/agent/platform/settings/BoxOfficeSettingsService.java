@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import vip.mate.agent.platform.common.AuditLogService;
 import vip.mate.agent.platform.common.CryptoService;
 import vip.mate.agent.platform.workspace.WorkspaceService;
 
@@ -24,6 +25,7 @@ public class BoxOfficeSettingsService {
     private final SysConfigRepository configRepository;
     private final WorkspaceService workspaceService;
     private final CryptoService cryptoService;
+    private final AuditLogService auditLogService;
 
     /** 兼容旧部署的环境变量/yml 配置，作为数据库未配置时的兜底 */
     @Value("${boxoffice.apizero.api-key:}")
@@ -78,6 +80,7 @@ public class BoxOfficeSettingsService {
         configRepository.save(config);
 
         log.info("[settings] 已更新极数本源 API Key（加密存储）: workspace={}", workspaceId);
+        auditLogService.record("SETTINGS_KEY_UPDATE", "SYS_CONFIG", APIZERO_KEY, "更新票房数据源密钥");
         return new BoxOfficeKeyView(true, cryptoService.mask(trimmed), "database");
     }
 
@@ -86,6 +89,7 @@ public class BoxOfficeSettingsService {
         Long workspaceId = workspaceService.defaultWorkspaceId();
         configRepository.deleteByWorkspaceIdAndConfigKey(workspaceId, APIZERO_KEY);
         log.info("[settings] 已清除极数本源 API Key: workspace={}", workspaceId);
+        auditLogService.record("SETTINGS_KEY_CLEAR", "SYS_CONFIG", APIZERO_KEY, "清除票房数据源密钥");
     }
 
     private String readDatabaseKey() {

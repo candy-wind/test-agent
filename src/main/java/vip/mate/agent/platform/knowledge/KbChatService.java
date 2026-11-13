@@ -8,6 +8,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import vip.mate.agent.config.OutboundUrlGuard;
+import vip.mate.agent.config.WorkspaceContext;
 import vip.mate.agent.dto.ChatMessage;
 import vip.mate.agent.platform.knowledge.dto.KbChatRequest;
 import vip.mate.agent.platform.model.ModelConfigService;
@@ -16,7 +18,6 @@ import vip.mate.agent.platform.model.dto.ModelEndpoint;
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -46,6 +47,7 @@ public class KbChatService {
 
     private final KnowledgeBaseService knowledgeBaseService;
     private final ModelConfigService modelConfigService;
+    private final OutboundUrlGuard outboundUrlGuard;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final ExecutorService executor = Executors.newCachedThreadPool();
 
@@ -57,14 +59,16 @@ public class KbChatService {
     private int maxHistoryMessages;
 
     public KbChatService(KnowledgeBaseService knowledgeBaseService,
-                         ModelConfigService modelConfigService) {
+                         ModelConfigService modelConfigService,
+                         OutboundUrlGuard outboundUrlGuard) {
         this.knowledgeBaseService = knowledgeBaseService;
         this.modelConfigService = modelConfigService;
+        this.outboundUrlGuard = outboundUrlGuard;
     }
 
     public SseEmitter chat(Long kbId, KbChatRequest request) {
         SseEmitter emitter = new SseEmitter(300_000L);
-        executor.execute(() -> {
+        executor.execute(WorkspaceContext.wrap(() -> {
             try {
                 String question = lastUserQuestion(request.getMessages());
                 if (question == null || question.isBlank()) {
@@ -76,7 +80,7 @@ public class KbChatService {
                         .name("citations")
                         .data(objectMapper.writeValueAsString(rag.results())));
 
-                ChatEndpoint endpoint = resolveChat(request.getModel());
+                ChatEndpoint endpoint = resolveChat();
                 String body = buildRequestBody(endpoint.model(), rag.context(), request.getMessages());
                 HttpResponse<InputStream> response = httpClient.send(
                         buildRequest(endpoint, body), HttpResponse.BodyHandlers.ofInputStream());
@@ -98,20 +102,20 @@ public class KbChatService {
                 }
                 emitter.complete();
             }
-        });
+        }));
         return emitter;
     }
 
     // ==================== 内部方法 ====================
 
-    private ChatEndpoint resolveChat(String requestedModel) {
+    private ChatEndpoint resolveChat() {
         ModelEndpoint endpoint = modelConfigService.resolveEndpoint("CHAT");
         if (endpoint == null) {
             throw new IllegalStateException("还没有可用的对话模型，请先到「模型配置」页面添加供应商和模型，"
                     + "并把 CHAT 路由指向其中一个模型");
         }
-        String model = requestedModel != null && !requestedModel.isBlank()
-                ? requestedModel.trim() : endpoint.modelKey();
+        // 模型由 CHAT 路由统一决定，不接受客户端覆盖，避免绕过平台配置
+        String model = endpoint.modelKey();
         validateModelKey(model);
         validateApiKey(endpoint.apiKey(), endpoint.providerName());
         return new ChatEndpoint(endpoint.baseUrl(), endpoint.apiKey(), model);
@@ -188,7 +192,7 @@ public class KbChatService {
 
     private HttpRequest buildRequest(ChatEndpoint endpoint, String body) {
         HttpRequest.Builder builder = HttpRequest.newBuilder()
-                .uri(URI.create(endpoint.baseUrl() + "/chat/completions"))
+                .uri(outboundUrlGuard.requireAllowed(endpoint.baseUrl() + "/chat/completions"))
                 .header("Content-Type", "application/json")
                 .timeout(Duration.ofSeconds(120))
                 .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8));
