@@ -26,9 +26,9 @@ import java.util.Locale;
  * 2. 创建默认工作空间与 OWNER 成员关系
  * 3. 按 AUTH_INITIAL_USERS 批量创建账号（只创建不存在的用户名）
  * <p>
- * 口令策略：显式配置 AUTH_PASSWORD / AUTH_PASSWORD_HASH 时以环境变量为准（每次启动同步）；
- * 未配置时，管理员口令始终为固定默认口令 123456（新库直接创建，已有账号不匹配时启动重置），
- * 保证 admin/123456 任何时候都能登录。其他账号的口令不受启动逻辑影响。
+ * 口令策略：管理员口令固定为默认口令 123456（新库直接创建；已有账号不匹配时启动重置），
+ * 保证 admin/123456 任何时候都能登录。不再支持通过环境变量配置管理员口令；
+ * 其他账号的口令由管理员在「用户管理」页面维护，启动逻辑不会改动它们。
  */
 @Slf4j
 @Component
@@ -38,7 +38,7 @@ public class PlatformBootstrap implements ApplicationRunner {
 
     private static final String USERNAME_PATTERN = "[A-Za-z0-9_.-]{2,64}";
 
-    /** 未配置环境变量口令时，新库中管理员的固定默认口令。 */
+    /** 新库中管理员的固定默认口令。 */
     static final String DEFAULT_ADMIN_PASSWORD = "123456";
 
     private final SysUserRepository userRepository;
@@ -52,14 +52,11 @@ public class PlatformBootstrap implements ApplicationRunner {
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
-        String configuredHash = resolveConfiguredPasswordHash();
         String username = authProperties.getUsername();
 
         SysUser admin = userRepository.findByUsername(username)
-                .map(existing -> syncAdmin(existing, configuredHash))
-                .orElseGet(() -> createAdmin(username,
-                        configuredHash != null ? configuredHash
-                                : passwordEncoder.encode(DEFAULT_ADMIN_PASSWORD)));
+                .map(this::syncAdmin)
+                .orElseGet(() -> createAdmin(username, passwordEncoder.encode(DEFAULT_ADMIN_PASSWORD)));
 
         SysWorkspace workspace = workspaceRepository.findAllByOrderByIdAsc().stream()
                 .findFirst()
@@ -72,34 +69,12 @@ public class PlatformBootstrap implements ApplicationRunner {
                 username, workspace.getName(), workspace.getId(), created, providerRepository.count());
     }
 
-    /** 只在显式配置口令时覆盖；未配置时返回 null，表示保留库中已有哈希。 */
-    private String resolveConfiguredPasswordHash() {
-        String hash = authProperties.getPasswordHash();
-        if (hash != null && !hash.isBlank()) {
-            String trimmed = hash.trim();
-            if (!trimmed.startsWith("$2")) {
-                throw new IllegalStateException("AUTH_PASSWORD_HASH 不是有效的 BCrypt 哈希，"
-                        + "请改用 AUTH_PASSWORD=<明文> 或生成 BCrypt 哈希后再配置");
-            }
-            return trimmed;
-        }
-        String raw = authProperties.getPassword();
-        if (raw != null && !raw.isBlank()) {
-            return passwordEncoder.encode(raw);
-        }
-        return null;
-    }
-
-    private SysUser syncAdmin(SysUser existing, String configuredHash) {
-        if (configuredHash != null) {
-            existing.setPasswordHash(configuredHash);
-        } else if (existing.getPasswordHash() == null
+    private SysUser syncAdmin(SysUser existing) {
+        if (existing.getPasswordHash() == null
                 || !passwordEncoder.matches(DEFAULT_ADMIN_PASSWORD, existing.getPasswordHash())) {
-            // 未配置环境变量口令时，保证默认口令 admin/123456 始终可用
-            // （可能是历史版本生成的随机口令残留），启动时重置并提示。
+            // 保证默认口令 admin/123456 始终可用（含历史版本随机口令残留）
             existing.setPasswordHash(passwordEncoder.encode(DEFAULT_ADMIN_PASSWORD));
-            log.warn("[bootstrap] 未配置 AUTH_PASSWORD/AUTH_PASSWORD_HASH，"
-                    + "已将管理员 {} 的口令重置为默认口令 {}（其他账号不受影响）",
+            log.warn("[bootstrap] 已将管理员 {} 的口令重置为默认口令 {}（其他账号不受影响）",
                     existing.getUsername(), DEFAULT_ADMIN_PASSWORD);
         }
         existing.setStatus("ACTIVE");
@@ -156,9 +131,7 @@ public class PlatformBootstrap implements ApplicationRunner {
     }
 
     private SysUser createAdmin(String username, String passwordHash) {
-        log.info("[bootstrap] 创建管理员: {}", username);
-        log.warn("[bootstrap] 未配置 AUTH_PASSWORD/AUTH_PASSWORD_HASH，管理员使用默认口令 {}，"
-                + "请登录后在「用户管理」中修改", DEFAULT_ADMIN_PASSWORD);
+        log.info("[bootstrap] 创建管理员: {}（默认口令 {}）", username, DEFAULT_ADMIN_PASSWORD);
         return userRepository.save(SysUser.builder()
                 .username(username)
                 .passwordHash(passwordHash)

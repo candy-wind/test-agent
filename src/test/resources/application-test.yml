@@ -21,7 +21,6 @@ platform:
 
 auth:
   username: admin
-  password: test-password
 
 boxoffice:
   refresh-initial-delay-ms: 3600000

@@ -38,10 +38,8 @@ class PlatformBootstrapTest {
     @InjectMocks private PlatformBootstrap bootstrap;
 
     @Test
-    void resetsLegacyPasswordToDefaultWhenNoEnvPasswordConfigured() {
+    void resetsLegacyPasswordToDefaultOnStartup() {
         when(authProperties.getUsername()).thenReturn("admin");
-        when(authProperties.getPassword()).thenReturn("");
-        when(authProperties.getPasswordHash()).thenReturn("");
         when(authProperties.getInitialUsers()).thenReturn("");
 
         SysUser existing = SysUser.builder()
@@ -63,14 +61,14 @@ class PlatformBootstrapTest {
     }
 
     @Test
-    void syncsPasswordWhenExplicitlyConfigured() {
+    void keepsDefaultPasswordWhenAlreadyMatching() {
         when(authProperties.getUsername()).thenReturn("admin");
-        when(authProperties.getPassword()).thenReturn("FixedPassw0rd");
-        when(authProperties.getPasswordHash()).thenReturn("");
         when(authProperties.getInitialUsers()).thenReturn("");
 
+        BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
+        String hash = encoder.encode("123456");
         SysUser existing = SysUser.builder()
-                .id(1L).username("admin").passwordHash("OLD")
+                .id(1L).username("admin").passwordHash(hash)
                 .status("ACTIVE").role("ADMIN").build();
         when(userRepository.findByUsername("admin")).thenReturn(Optional.of(existing));
         when(userRepository.save(any(SysUser.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -81,14 +79,12 @@ class PlatformBootstrapTest {
 
         bootstrap.run(mock(ApplicationArguments.class));
 
-        assertThat(existing.getPasswordHash()).isNotEqualTo("OLD").startsWith("$2");
+        assertThat(existing.getPasswordHash()).isEqualTo(hash);
     }
 
     @Test
     void createsAdminWithDefaultPasswordOnFreshDatabase() {
         when(authProperties.getUsername()).thenReturn("admin");
-        when(authProperties.getPassword()).thenReturn("");
-        when(authProperties.getPasswordHash()).thenReturn("");
         when(authProperties.getInitialUsers()).thenReturn("");
 
         ArgumentCaptor<SysUser> captor = ArgumentCaptor.forClass(SysUser.class);

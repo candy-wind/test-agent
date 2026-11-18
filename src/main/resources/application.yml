@@ -73,11 +73,9 @@ boxoffice:
     cookie: ""   # 可选:浏览器登录猫眼专业版后复制的完整 Cookie
 
 auth:
-  # 口令只从环境变量读取：AUTH_PASSWORD_HASH（BCrypt，推荐）或 AUTH_PASSWORD（明文）。
-  # 两者都未设置时，管理员口令固定为默认 123456（已有账号不匹配时启动会重置），admin/123456 始终可登录。
+  # 管理员账号默认 admin，口令固定 123456（由 PlatformBootstrap 保证，不通过环境变量配置）。
+  # 其他账号由管理员在「用户管理」页面创建和维护。
   username: ${AUTH_USERNAME:admin}
-  password: ${AUTH_PASSWORD:}
-  password-hash: ${AUTH_PASSWORD_HASH:}
   token-ttl-hours: ${AUTH_TOKEN_TTL_HOURS:24}
   cookie-secure: ${AUTH_COOKIE_SECURE:false}
   max-failed-attempts: ${AUTH_MAX_FAILED_ATTEMPTS:5}

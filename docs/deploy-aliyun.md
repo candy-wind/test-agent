@@ -128,7 +128,7 @@ sudo mkdir -p /opt/test-agent && sudo chown "$USER" /opt/test-agent
 DEPLOY_DIR=/opt/test-agent bash deploy.sh
 ```
 
-> 首次部署完成后，务必把 `.env` 备份到本地。里面的 `APP_SECRET_KEY` 一旦更换，数据库里已保存的模型 Key、票房 Key 将全部无法解密；`AUTH_PASSWORD` 是登录口令，同样需要留存。
+> 首次部署完成后，务必把 `.env` 备份到本地。里面的 `APP_SECRET_KEY` 一旦更换，数据库里已保存的模型 Key、票房 Key 将全部无法解密。
 >
 > 想自己指定数据库密码时，先在代码目录把 `.env.example` 复制为 `.env` 并改好 `DB_PASSWORD`，再执行 `./deploy.sh`；脚本不会覆盖已有值。
 
@@ -140,8 +140,8 @@ DEPLOY_DIR=/opt/test-agent bash deploy.sh
 
 - 访问 `http://<公网IP>:8080`
 - 应用日志：`docker compose -f docker-compose.prod.yml logs -f app`，或文件日志 `tail -f /mnt/logs/test-agent/app.log`
-- 登录账号 `AUTH_USERNAME`（默认 `admin`）。未在 `.env` 配置 `AUTH_PASSWORD` 时，管理员口令固定为默认 `123456`（不匹配时启动自动重置，任何历史随机口令都会被还原）；已配置则以 `.env` 中的 `AUTH_PASSWORD` 为准。
-- **从旧版本（随机口令版）升级**：需要把 `.env` 里旧的 `AUTH_PASSWORD` 行删除或清空，再重启应用，默认口令才会生效：`sed -i '/^AUTH_PASSWORD=/d' ~/test-agent/.env && cd ~/test-agent && docker compose -f docker-compose.prod.yml up -d --force-recreate app`
+- 登录账号 `AUTH_USERNAME`（默认 `admin`），**口令固定为 `123456`**（不通过环境变量配置，启动时自动保证生效）
+- **从旧版本升级**：`.env` 里遗留的 `AUTH_PASSWORD` / `AUTH_PASSWORD_HASH` 已不再读取，可以直接删掉：`sed -i '/^AUTH_PASSWORD/d' ~/test-agent/.env`
 
 ### 给团队每人发独立账号
 
@@ -329,15 +329,9 @@ docker build --build-arg MAVEN_MIRROR_URL=https://repo.maven.apache.org/maven2 -
 
 **忘记管理员口令 / 想改口令**
 
-只要 `.env` 里没有 `AUTH_PASSWORD`，管理员口令就是固定的 `admin / 123456`（重启自动还原）。想改成固定自定义口令，在 `.env` 中设置 `AUTH_PASSWORD`：
-
-```bash
-# 修改后重建应用容器使新口令生效（sys_user 中的 BCrypt 哈希会在启动时同步）
-cd ~/test-agent && docker compose -f docker-compose.prod.yml up -d --force-recreate app
-```
-
-也可以通过 `AUTH_PASSWORD_HASH` 直接提供 BCrypt 哈希，避免明文口令落盘。
+管理员口令固定是 `admin / 123456`，重启后自动还原，忘记时直接用它登录即可。
 其他账号的口令用管理员登录后在「用户管理」页面重置即可，不需要重启服务。
+如需一个长期稳定的管理员账号，可在「用户管理」中另建一个 ADMIN 角色账号日常使用。
 
 **上了 HTTPS（Nginx + 证书）之后登录不了**
 

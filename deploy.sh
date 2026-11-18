@@ -138,8 +138,7 @@ if [ -z "$(get_env APP_SECRET_KEY)" ]; then
   log "已生成 APP_SECRET_KEY 并写入 .env（请备份，更换后已保存的 API Key 将无法解密）"
 fi
 
-# 管理员口令不自动生成：未在 .env 配置 AUTH_PASSWORD/AUTH_PASSWORD_HASH 时，
-# 应用使用固定默认口令 123456（仅首次创建账号生效，已有口令不会被覆盖）。
+# 管理员口令固定为 123456，不通过 .env 或环境变量配置（其他账号在「用户管理」页面创建）
 
 [ -n "$(get_env LOG_SERVICE_NAME)" ] || set_env LOG_SERVICE_NAME "test-agent"
 chmod 600 .env
@@ -203,11 +202,7 @@ fi
 
 log "部署完成"
 printf '  访问地址：http://<服务器公网IP>:%s\n' "$APP_PORT"
-if [ -n "$(get_env AUTH_PASSWORD)" ] || [ -n "$(get_env AUTH_PASSWORD_HASH)" ]; then
-  printf '  登录账号：%s，口令见 .env 中 AUTH_PASSWORD\n' "$AUTH_USERNAME"
-else
-  printf '  登录账号/口令（默认）：%s / 123456，请登录后及时修改\n' "$AUTH_USERNAME"
-fi
+printf '  登录账号/口令：%s / 123456（管理员固定默认口令，其他账号在「用户管理」创建）\n' "$AUTH_USERNAME"
 printf '  代码目录：%s\n' "$CODE_DIR"
 printf '  配置文件：%s/.env（请备份，内含数据库密码与 APP_SECRET_KEY）\n' "$CODE_DIR"
 printf '  日志文件：%s/%s/app.log\n' "$LOG_ROOT" "$LOG_SERVICE_NAME"

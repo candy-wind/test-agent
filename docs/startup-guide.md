@@ -170,8 +170,7 @@ $env:DB_PASSWORD = "你的密码"
 | `DB_URL` | 数据库连接（`jdbc:postgresql://localhost:5432/test_agent`） |
 | `DB_USERNAME` / `DB_PASSWORD` | 数据库账号密码（`postgres` / `postgres`） |
 | `APP_SECRET_KEY` | 模型 API Key 的加密主密钥（**未设置会拒绝启动**；本地可设 `PLATFORM_ALLOW_DEV_SECRET=true` 降级） |
-| `AUTH_USERNAME` / `AUTH_PASSWORD` | 登录账号与明文口令（默认账号 `admin`，未配置口令时固定用默认口令 `123456`） |
-| `AUTH_PASSWORD_HASH` | 直接提供 BCrypt 哈希，优先于 `AUTH_PASSWORD` |
+| `AUTH_USERNAME` | 管理员登录账号（默认 `admin`；口令固定 `123456`，不可通过环境变量配置） |
 | `AUTH_INITIAL_USERS` | 可选：首次启动批量建号，格式 `用户名:口令[:角色]`，逗号分隔；不覆盖已有口令 |
 | `AUTH_COOKIE_SECURE` | HTTPS 部署设为 `true`；纯 HTTP 必须保持 `false` |
 | `OUTBOUND_ALLOW_PRIVATE_HOSTS` | 本地 Ollama/vLLM 需设为 `true`，默认拒绝所有内网地址 |
@@ -211,16 +210,13 @@ $env:DB_PASSWORD = "你的密码"
 | 模型配置 | <http://localhost:8080/platform.html> |
 | 登录页 | <http://localhost:8080/login.html> |
 
-默认登录账号 `AUTH_USERNAME`（默认 `admin`），口令来源如下：
+默认登录账号 `AUTH_USERNAME`（默认 `admin`），**口令固定为 `123456`**：
 
-| 方式 | 说明 |
-| --- | --- |
-| `AUTH_PASSWORD_HASH` | BCrypt 哈希，优先级最高，适合生产 |
-| `AUTH_PASSWORD` | 明文口令，应用启动时自动做 BCrypt 哈希后写入 `sys_user`；每次启动都会同步该管理员账号 |
-| 都不设置 | 管理员口令固定为默认 `123456`：新库直接创建；已有账号口令不匹配时，**启动时自动重置为 `123456`**（含历史版本生成的随机口令残留） |
+- 新库首次启动直接以 `123456` 创建管理员
+- 已有账号口令不匹配时，启动自动重置为 `123456`（含历史版本随机口令残留）
+- 不通过任何环境变量配置管理员口令；`admin / 123456` 任何时候都能登录
 
-> 也就是说：只要不配置环境变量口令，`admin / 123456` 任何时候都能登录。
-> 注意在「用户管理」页面修改的管理员口令，重启后会还原为默认口令；要固定自定义口令请配置 `AUTH_PASSWORD`。其他账号的口令不受启动逻辑影响。
+> 注意：在「用户管理」页面修改的管理员口令，重启后会还原为 `123456`。其他账号的口令不受启动逻辑影响，在页面修改后长期有效。
 
 使用 `start.ps1` 启动时，脚本会在 `%LOCALAPPDATA%\test-agent\` 下生成并持久化
 `dev-secret.txt`（加密主密钥），启动时把登录账号和口令打印在控制台。
@@ -369,7 +365,7 @@ $env:PLATFORM_ALLOW_DEV_SECRET = "true"
 
 ### 忘记登录口令
 
-未配置 `AUTH_PASSWORD` 时管理员口令固定是 `admin / 123456`（重启自动还原）；
+管理员口令固定是 `admin / 123456`（重启自动还原）；
 其他账号的口令由管理员在「用户管理」页面重置即可，不需要重启服务。
 连续 5 次登录失败会锁定 15 分钟。
 

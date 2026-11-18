@@ -5,9 +5,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 /**
- * 登录与安全相关配置。口令不写在 application.yml 里：
- * 优先 AUTH_PASSWORD_HASH（BCrypt），其次 AUTH_PASSWORD（明文，启动时哈希），
- * 两者都没有时管理员口令固定为默认 123456（启动时保证生效）。
+ * 登录与安全相关配置。
+ * 管理员口令固定为默认值 123456（由 PlatformBootstrap 保证），不再通过环境变量配置；
+ * 其他账号由管理员在「用户管理」页面创建与维护。
  */
 @Data
 @Component
@@ -15,12 +15,6 @@ import org.springframework.stereotype.Component;
 public class AuthProperties {
 
     private String username = "admin";
-
-    /** 明文口令（仅用于本地/兼容部署，生产建议用 passwordHash） */
-    private String password = "";
-
-    /** BCrypt 哈希，最高优先级 */
-    private String passwordHash = "";
 
     private long tokenTtlHours = 24;
 

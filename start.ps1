@@ -297,35 +297,30 @@ if (-not $javaHome) {
 Set-Jdk $javaHome
 $mvn = Resolve-Maven
 
-# 本地开发凭据：生产由 .env / 环境变量显式提供，这里只为双击启动生成并持久化。
+# 本地开发密钥：生产由 .env / 环境变量显式提供，这里只为双击启动生成并持久化。
 # 持久化是必要的：APP_SECRET_KEY 变化后数据库中已加密的 API Key 将无法解密。
-if (-not $env:APP_SECRET_KEY -or -not $env:AUTH_PASSWORD) {
+if (-not $env:APP_SECRET_KEY) {
     $devDir = Join-Path $env:LOCALAPPDATA "test-agent"
     if (-not (Test-Path $devDir)) { New-Item -ItemType Directory -Path $devDir -Force | Out-Null }
 
-    if (-not $env:APP_SECRET_KEY) {
-        $secretFile = Join-Path $devDir "dev-secret.txt"
-        if (Test-Path $secretFile) {
-            $env:APP_SECRET_KEY = (Get-Content -Path $secretFile -Raw).Trim()
-        } else {
-            $bytes = New-Object byte[] 32
-            $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
-            $rng.GetBytes($bytes); $rng.Dispose()
-            $env:APP_SECRET_KEY = [Convert]::ToBase64String($bytes)
-            Set-Content -Path $secretFile -Value $env:APP_SECRET_KEY -Encoding UTF8
-            Write-Step "已生成并保存本地开发密钥: $secretFile"
-        }
-    }
-
-    if (-not $env:AUTH_PASSWORD -and -not $env:AUTH_PASSWORD_HASH) {
-        # 未配置口令时使用应用内置默认口令 123456（仅首次创建账号生效）
-        $loginUser = if ($env:AUTH_USERNAME) { $env:AUTH_USERNAME } else { "admin" }
-        Write-Host ""
-        Write-Host "  本地登录账号: $loginUser" -ForegroundColor Yellow
-        Write-Host "  本地登录口令: 123456（默认口令，可通过环境变量 AUTH_PASSWORD 覆盖）" -ForegroundColor Yellow
-        Write-Host ""
+    $secretFile = Join-Path $devDir "dev-secret.txt"
+    if (Test-Path $secretFile) {
+        $env:APP_SECRET_KEY = (Get-Content -Path $secretFile -Raw).Trim()
+    } else {
+        $bytes = New-Object byte[] 32
+        $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+        $rng.GetBytes($bytes); $rng.Dispose()
+        $env:APP_SECRET_KEY = [Convert]::ToBase64String($bytes)
+        Set-Content -Path $secretFile -Value $env:APP_SECRET_KEY -Encoding UTF8
+        Write-Step "已生成并保存本地开发密钥: $secretFile"
     }
 }
+
+$loginUser = if ($env:AUTH_USERNAME) { $env:AUTH_USERNAME } else { "admin" }
+Write-Host ""
+Write-Host "  本地登录账号: $loginUser" -ForegroundColor Yellow
+Write-Host "  本地登录口令: 123456（管理员固定默认口令）" -ForegroundColor Yellow
+Write-Host ""
 
 $useJar = $Jar -or $Build
 if ($NoBuild -and -not $useJar) {
