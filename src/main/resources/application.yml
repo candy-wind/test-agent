@@ -74,8 +74,7 @@ boxoffice:
 
 auth:
   # 口令只从环境变量读取：AUTH_PASSWORD_HASH（BCrypt，推荐）或 AUTH_PASSWORD（明文）。
-  # 两者都未设置时，管理员使用固定默认口令 123456（仅全新数据库首次创建时生效，
-  # 已有账号的口令不会被覆盖；生产环境请配置后及时修改）。
+  # 两者都未设置时，管理员口令固定为默认 123456（已有账号不匹配时启动会重置），admin/123456 始终可登录。
   username: ${AUTH_USERNAME:admin}
   password: ${AUTH_PASSWORD:}
   password-hash: ${AUTH_PASSWORD_HASH:}

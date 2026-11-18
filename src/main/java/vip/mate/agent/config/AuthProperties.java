@@ -7,7 +7,7 @@ import org.springframework.stereotype.Component;
 /**
  * 登录与安全相关配置。口令不写在 application.yml 里：
  * 优先 AUTH_PASSWORD_HASH（BCrypt），其次 AUTH_PASSWORD（明文，启动时哈希），
- * 两者都没有时使用固定默认口令 123456（不生成随机口令）。
+ * 两者都没有时管理员口令固定为默认 123456（启动时保证生效）。
  */
 @Data
 @Component

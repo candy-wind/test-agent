@@ -38,14 +38,14 @@ class PlatformBootstrapTest {
     @InjectMocks private PlatformBootstrap bootstrap;
 
     @Test
-    void keepsExistingPasswordWhenNoEnvPasswordConfigured() {
+    void resetsLegacyPasswordToDefaultWhenNoEnvPasswordConfigured() {
         when(authProperties.getUsername()).thenReturn("admin");
         when(authProperties.getPassword()).thenReturn("");
         when(authProperties.getPasswordHash()).thenReturn("");
         when(authProperties.getInitialUsers()).thenReturn("");
 
         SysUser existing = SysUser.builder()
-                .id(1L).username("admin").passwordHash("PASSWORD-SET-IN-UI")
+                .id(1L).username("admin").passwordHash("$2a$10$legacyRandomPasswordHashFromOldDeploy")
                 .status("ACTIVE").role("USER").build();
         when(userRepository.findByUsername("admin")).thenReturn(Optional.of(existing));
         when(userRepository.save(any(SysUser.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -56,7 +56,8 @@ class PlatformBootstrapTest {
 
         bootstrap.run(mock(ApplicationArguments.class));
 
-        assertThat(existing.getPasswordHash()).isEqualTo("PASSWORD-SET-IN-UI");
+        BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
+        assertThat(encoder.matches("123456", existing.getPasswordHash())).isTrue();
         assertThat(existing.getRole()).isEqualTo("ADMIN");
         assertThat(existing.getStatus()).isEqualTo("ACTIVE");
     }

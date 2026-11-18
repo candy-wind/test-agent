@@ -140,7 +140,8 @@ DEPLOY_DIR=/opt/test-agent bash deploy.sh
 
 - 访问 `http://<公网IP>:8080`
 - 应用日志：`docker compose -f docker-compose.prod.yml logs -f app`，或文件日志 `tail -f /mnt/logs/test-agent/app.log`
-- 登录账号 `AUTH_USERNAME`（默认 `admin`），未在 `.env` 配置口令时使用固定默认口令 `123456`（仅首次创建账号生效）；已配置则以 `.env` 中的 `AUTH_PASSWORD` 为准。**部署到公网后请尽快修改默认口令**。
+- 登录账号 `AUTH_USERNAME`（默认 `admin`）。未在 `.env` 配置 `AUTH_PASSWORD` 时，管理员口令固定为默认 `123456`（不匹配时启动自动重置，任何历史随机口令都会被还原）；已配置则以 `.env` 中的 `AUTH_PASSWORD` 为准。
+- **从旧版本（随机口令版）升级**：需要把 `.env` 里旧的 `AUTH_PASSWORD` 行删除或清空，再重启应用，默认口令才会生效：`sed -i '/^AUTH_PASSWORD=/d' ~/test-agent/.env && cd ~/test-agent && docker compose -f docker-compose.prod.yml up -d --force-recreate app`
 
 ### 给团队每人发独立账号
 
@@ -328,7 +329,7 @@ docker build --build-arg MAVEN_MIRROR_URL=https://repo.maven.apache.org/maven2 -
 
 **忘记管理员口令 / 想改口令**
 
-未修改过口令时默认是 `admin / 123456`。要改成固定口令，直接编辑 `.env` 中的 `AUTH_PASSWORD`：
+只要 `.env` 里没有 `AUTH_PASSWORD`，管理员口令就是固定的 `admin / 123456`（重启自动还原）。想改成固定自定义口令，在 `.env` 中设置 `AUTH_PASSWORD`：
 
 ```bash
 # 修改后重建应用容器使新口令生效（sys_user 中的 BCrypt 哈希会在启动时同步）
