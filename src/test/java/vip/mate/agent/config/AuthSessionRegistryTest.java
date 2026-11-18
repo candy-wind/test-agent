@@ -11,11 +11,12 @@ class AuthSessionRegistryTest {
     @Test
     void issuesAndInvalidatesSessions() {
         AuthSessionRegistry registry = new AuthSessionRegistry();
-        String token = registry.issue("admin", 1L, 2L, 24);
+        String token = registry.issue("admin", 1L, 2L, "ADMIN", 24);
 
         assertThat(token).isNotBlank();
         assertThat(registry.verify(token).username()).isEqualTo("admin");
         assertThat(registry.verify(token).workspaceId()).isEqualTo(2L);
+        assertThat(registry.verify(token).role()).isEqualTo("ADMIN");
         assertThat(registry.verify(null)).isNull();
         assertThat(registry.verify("forged-token")).isNull();
 
@@ -25,7 +26,7 @@ class AuthSessionRegistryTest {
 
     @Test
     void workspaceContextPropagatesToAsyncThreads() throws Exception {
-        WorkspaceContext.Identity identity = new WorkspaceContext.Identity("admin", 1L, 42L);
+        WorkspaceContext.Identity identity = new WorkspaceContext.Identity("admin", 1L, 42L, "ADMIN");
         WorkspaceContext.set(identity);
         AtomicReference<WorkspaceContext.Identity> seen = new AtomicReference<>();
         try {

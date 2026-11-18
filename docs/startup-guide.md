@@ -172,6 +172,7 @@ $env:DB_PASSWORD = "你的密码"
 | `APP_SECRET_KEY` | 模型 API Key 的加密主密钥（**未设置会拒绝启动**；本地可设 `PLATFORM_ALLOW_DEV_SECRET=true` 降级） |
 | `AUTH_USERNAME` / `AUTH_PASSWORD` | 登录账号与明文口令（默认账号 `admin`，无内置口令） |
 | `AUTH_PASSWORD_HASH` | 直接提供 BCrypt 哈希，优先于 `AUTH_PASSWORD` |
+| `AUTH_INITIAL_USERS` | 可选：首次启动批量建号，格式 `用户名:口令[:角色]`，逗号分隔；不覆盖已有口令 |
 | `AUTH_COOKIE_SECURE` | HTTPS 部署设为 `true`；纯 HTTP 必须保持 `false` |
 | `OUTBOUND_ALLOW_PRIVATE_HOSTS` | 本地 Ollama/vLLM 需设为 `true`，默认拒绝所有内网地址 |
 | `OUTBOUND_ALLOWED_HOSTS` | 出站域名白名单，逗号分隔，支持 `*.example.com` |
@@ -215,14 +216,28 @@ $env:DB_PASSWORD = "你的密码"
 | 方式 | 说明 |
 | --- | --- |
 | `AUTH_PASSWORD_HASH` | BCrypt 哈希，优先级最高，适合生产 |
-| `AUTH_PASSWORD` | 明文口令，应用启动时自动做 BCrypt 哈希后写入 `sys_user` |
-| 都不设置 | 启动日志打印一次性随机口令，每次重启都会重新生成 |
+| `AUTH_PASSWORD` | 明文口令，应用启动时自动做 BCrypt 哈希后写入 `sys_user`；每次启动都会同步该管理员账号 |
+| 都不设置 | **全新数据库**：启动日志打印一次初始口令并写入 `sys_user`，之后重启不再变化；**已有账号**：完全保留库中现有口令，不会被覆盖 |
+
+> 也就是说，管理员在「用户管理」页面改过的口令，只要环境变量没显式配置，重启后就不会失效。
 
 使用 `start.ps1` 启动最省事：脚本会在 `%LOCALAPPDATA%\test-agent\` 下生成并持久化
 `dev-secret.txt`（加密主密钥）和 `dev-password.txt`（登录口令），启动时把账号口令打印在控制台。
 同一份密钥会一直复用，避免重启后数据库里已加密的 API Key 无法解密。
 
 > 生产部署请用 [deploy-aliyun.md](deploy-aliyun.md) 的一键脚本，它会把随机口令写入 `.env` 并提示备份。
+
+### 多人使用：给每个人发独立账号
+
+管理员登录后，左侧会出现「用户管理」（<http://localhost:8080/users.html>）：可新增账号、重置口令、停用账号、调整角色。普通成员看不到该入口，调用管理接口会返回 403。口令以 BCrypt 存库，列表接口不返回口令哈希，所有变更写入审计日志。
+
+也可以首次启动前批量建号：
+
+```powershell
+$env:AUTH_INITIAL_USERS = "alice:ChangeMe123:USER,bob:ChangeMe456:USER"
+```
+
+只创建不存在的账号，绝不覆盖已有口令；口令中不要包含 `:` 和 `,`。
 
 ---
 
@@ -355,8 +370,9 @@ $env:PLATFORM_ALLOW_DEV_SECRET = "true"
 ### 忘记登录口令
 
 用 `start.ps1` 启动的直接看控制台输出，或读取 `%LOCALAPPDATA%\test-agent\dev-password.txt`；
-未使用该脚本且未设置环境变量时，口令会在应用启动日志中以醒目 WARN 打印，且重启后变化。
-需要固定口令就设置 `AUTH_PASSWORD`（或 `AUTH_PASSWORD_HASH`）。连续 5 次登录失败会锁定 15 分钟。
+全新数据库且未设置环境变量时，初始口令会在应用启动日志中以醒目 WARN 打印一次，之后重启不会再变。
+管理员可在「用户管理」页面重置任意账号的口令；若连管理员口令也忘记，设置 `AUTH_PASSWORD` 后重启会覆盖该管理员账号的口令。
+连续 5 次登录失败会锁定 15 分钟。
 
 ### 配置本地 Ollama / vLLM 被拒绝
 

@@ -142,6 +142,18 @@ DEPLOY_DIR=/opt/test-agent bash deploy.sh
 - 应用日志：`docker compose -f docker-compose.prod.yml logs -f app`，或文件日志 `tail -f /mnt/logs/test-agent/app.log`
 - 登录账号 `AUTH_USERNAME`（默认 `admin`），口令是首次部署生成的 `AUTH_PASSWORD`，见 `.env`；部署完成的日志也会打印一次。项目不再包含任何内置弱口令。
 
+### 给团队每人发独立账号
+
+用管理员登录后，左侧「用户管理」（仅管理员可见）可以新增账号、重置口令、停用账号和调整角色。创建时填写初始口令并告知本人即可；口令以 BCrypt 存入 `sys_user`，列表接口不会回显，创建/重置/停用都会写 `sys_audit_log`。系统禁止停用或降级当前登录的管理员，并保证至少保留一个启用的管理员。
+
+也可以在首次部署前在 `.env` 里批量初始化：
+
+```bash
+AUTH_INITIAL_USERS=alice:ChangeMe123:USER,bob:ChangeMe456:USER
+```
+
+格式为 `用户名:口令[:角色]`，多个账号用英文逗号分隔，口令至少 8 位且不要包含 `:` 和 `,`。**只创建不存在的账号，绝不覆盖已有口令**；`deploy.sh` 也不会覆盖你手写的 `.env` 值。明文口令会出现在 `.env`（权限 600）和 `docker inspect` 中，因此更推荐用页面逐个创建。
+
 以后改了代码并 push 到 GitHub，服务器上只需要：
 
 ```bash
@@ -323,6 +335,7 @@ cd ~/test-agent && docker compose -f docker-compose.prod.yml up -d --force-recre
 ```
 
 也可以通过 `AUTH_PASSWORD_HASH` 直接提供 BCrypt 哈希，避免明文口令落盘。
+其他账号的口令用管理员登录后在「用户管理」页面重置即可，不需要重启服务。
 
 **上了 HTTPS（Nginx + 证书）之后登录不了**
 

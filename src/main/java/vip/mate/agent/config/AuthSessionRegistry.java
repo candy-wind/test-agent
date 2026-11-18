@@ -17,7 +17,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @Component
 public class AuthSessionRegistry {
 
-    public record Session(String username, Long userId, Long workspaceId, Instant expiresAt) {
+    public record Session(String username, Long userId, Long workspaceId, String role, Instant expiresAt) {
     }
 
     private final ConcurrentHashMap<String, Session> sessions = new ConcurrentHashMap<>();
@@ -38,12 +38,12 @@ public class AuthSessionRegistry {
         return session;
     }
 
-    public String issue(String username, Long userId, Long workspaceId, long ttlHours) {
+    public String issue(String username, Long userId, Long workspaceId, String role, long ttlHours) {
         long ttl = Math.max(1, ttlHours);
         byte[] bytes = new byte[32];
         random.nextBytes(bytes);
         String token = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-        sessions.put(token, new Session(username, userId, workspaceId,
+        sessions.put(token, new Session(username, userId, workspaceId, role,
                 Instant.now().plusSeconds(ttl * 3600)));
         return token;
     }

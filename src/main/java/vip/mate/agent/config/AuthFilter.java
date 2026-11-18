@@ -54,7 +54,7 @@ public class AuthFilter implements Filter {
         }
 
         WorkspaceContext.set(new WorkspaceContext.Identity(
-                session.username(), session.userId(), session.workspaceId()));
+                session.username(), session.userId(), session.workspaceId(), session.role()));
         try {
             chain.doFilter(req, res);
         } finally {

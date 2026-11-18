@@ -6,7 +6,7 @@ package vip.mate.agent.config;
  */
 public final class WorkspaceContext {
 
-    public record Identity(String username, Long userId, Long workspaceId) {
+    public record Identity(String username, Long userId, Long workspaceId, String role) {
     }
 
     private static final ThreadLocal<Identity> CURRENT = new ThreadLocal<>();

@@ -82,6 +82,8 @@ auth:
   cookie-secure: ${AUTH_COOKIE_SECURE:false}
   max-failed-attempts: ${AUTH_MAX_FAILED_ATTEMPTS:5}
   lockout-minutes: ${AUTH_LOCKOUT_MINUTES:15}
+  # 可选：首次启动批量创建账号 user:password[:role],...；只创建不存在的账号，不覆盖已有口令
+  initial-users: ${AUTH_INITIAL_USERS:}
 
 # 平台基础配置（P0）
 platform:

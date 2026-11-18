@@ -23,6 +23,12 @@ public class PlatformExceptionHandler {
         return ApiResponse.error(400, e.getMessage());
     }
 
+    @ExceptionHandler(ForbiddenException.class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public ApiResponse<Void> handleForbidden(ForbiddenException e) {
+        return ApiResponse.error(403, e.getMessage());
+    }
+
     @ExceptionHandler(NoSuchElementException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public ApiResponse<Void> handleNotFound(NoSuchElementException e) {

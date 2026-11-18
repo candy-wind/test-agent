@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>用户管理</title>
+<style>
+:root { color-scheme: light; }
+* { box-sizing: border-box; }
+body { margin: 0; background: #f6f7f9; color: #1f2329; font: 14px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif; }
+.wrap { max-width: 1080px; margin: 0 auto; padding: 22px 20px 48px; }
+header h1 { margin: 0 0 4px; font-size: 20px; font-weight: 500; }
+header p { margin: 0 0 18px; color: #6b7280; font-size: 13px; }
+.card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 18px 20px; margin-bottom: 16px; }
+.card h2 { margin: 0 0 14px; font-size: 15px; font-weight: 500; }
+.card-head { display: flex; align-items: center; justify-content: space-between; }
+.form-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+.form-row label { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: #6b7280; }
+input, select { height: 34px; padding: 0 10px; border: 1px solid #d7dbe0; border-radius: 7px; background: #fff; color: #1f2329; font-size: 13px; outline: none; min-width: 150px; }
+input:focus, select:focus { border-color: #4a7fd4; }
+.btn { height: 34px; padding: 0 14px; border: 1px solid #d7dbe0; border-radius: 7px; background: #fff; color: #1f2329; cursor: pointer; font-size: 13px; }
+.btn:hover { background: #f3f5f8; }
+.btn.primary { background: #2563a6; border-color: #2563a6; color: #fff; }
+.btn.primary:hover { background: #1d528a; }
+.btn.danger { color: #a32d2d; border-color: #e5c4c4; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.tip { margin-top: 10px; font-size: 12px; color: #8a9099; }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #edf0f3; white-space: nowrap; }
+th { color: #6b7280; font-weight: 500; background: #fafbfc; }
+tbody tr:hover { background: #fafbfc; }
+.empty { text-align: center; color: #8a9099; padding: 28px 0; }
+.badge { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; }
+.badge.active { background: #e7f4ec; color: #1d7a4d; }
+.badge.disabled { background: #f2f3f5; color: #7a7f87; }
+.tag-self { color: #8a9099; font-size: 12px; margin-left: 4px; }
+.row-actions { display: flex; gap: 6px; }
+.row-actions .btn { height: 28px; padding: 0 10px; font-size: 12px; }
+.overlay { position: fixed; inset: 0; background: rgba(20,24,30,.42); display: none; align-items: center; justify-content: center; z-index: 50; }
+.overlay.show { display: flex; }
+.modal { width: min(420px, 92vw); background: #fff; border-radius: 12px; padding: 20px; }
+.modal h3 { margin: 0 0 6px; font-size: 16px; font-weight: 500; }
+.modal p { margin: 0 0 14px; color: #6b7280; font-size: 13px; }
+.modal input { width: 100%; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.toast-wrap { position: fixed; top: 16px; right: 16px; display: flex; flex-direction: column; gap: 8px; z-index: 60; }
+.toast { padding: 9px 14px; border-radius: 8px; background: #1f2329; color: #fff; font-size: 13px; }
+.toast.error { background: #a32d2d; }
+</style>
+</head>
+<body>
+<div class="wrap">
+    <header>
+        <h1>用户管理</h1>
+        <p>为每个使用者创建独立账号。口令只在创建 / 重置时输入，服务端以 BCrypt 保存，不会回显。</p>
+    </header>
+
+    <section class="card">
+        <h2>新增账号</h2>
+        <form id="createForm" class="form-row">
+            <label>用户名<input id="newUsername" required pattern="[A-Za-z0-9_.-]{2,64}" placeholder="例如 alice" autocomplete="off"></label>
+            <label>昵称<input id="newNickname" placeholder="选填" autocomplete="off"></label>
+            <label>初始口令<input id="newPassword" type="password" required minlength="8" placeholder="至少 8 位" autocomplete="new-password"></label>
+            <label>角色<select id="newRole"><option value="USER">普通成员</option><option value="ADMIN">管理员</option></select></label>
+            <button type="submit" class="btn primary">创建账号</button>
+        </form>
+        <div class="tip">创建后请把用户名和初始口令告知本人。管理员可以管理账号；普通成员只能使用对话、知识库等功能。</div>
+    </section>
+
+    <section class="card">
+        <div class="card-head">
+            <h2>账号列表</h2>
+            <button type="button" class="btn" id="refreshBtn">刷新</button>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr><th>用户名</th><th>昵称</th><th>角色</th><th>状态</th><th>创建时间</th><th>操作</th></tr>
+                </thead>
+                <tbody id="userRows"><tr><td colspan="6" class="empty">加载中...</td></tr></tbody>
+            </table>
+        </div>
+    </section>
+</div>
+
+<div class="overlay" id="resetOverlay">
+    <div class="modal">
+        <h3>重置口令</h3>
+        <p id="resetTarget"></p>
+        <input type="password" id="resetPassword" minlength="8" placeholder="新口令，至少 8 位" autocomplete="new-password">
+        <div class="modal-actions">
+            <button type="button" class="btn" id="resetCancel">取消</button>
+            <button type="button" class="btn primary" id="resetConfirm">确认重置</button>
+        </div>
+    </div>
+</div>
+
+<div class="toast-wrap" id="toasts"></div>
+
+<script>
+const API = '/api/v1/platform/users';
+let resettingId = null;
+
+async function api(path, options = {}) {
+    const res = await fetch(API + path, {
+        credentials: 'same-origin',
+        ...options,
+        headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }
+    });
+    if (res.status === 401) { location.href = '/login.html'; throw new Error('登录已过期'); }
+    let body;
+    try { body = await res.json(); } catch (e) { throw new Error('响应解析失败 (HTTP ' + res.status + ')'); }
+    if (body.code !== 0) throw new Error(body.message || '请求失败');
+    return body.data;
+}
+
+function esc(value) {
+    return String(value == null ? '' : value)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function toast(message, type) {
+    const el = document.createElement('div');
+    el.className = 'toast ' + (type || '');
+    el.textContent = message;
+    document.getElementById('toasts').appendChild(el);
+    setTimeout(() => el.remove(), 3800);
+}
+
+function fmtTime(value) {
+    if (!value) return '-';
+    try { return new Date(value).toLocaleString('zh-CN', { hour12: false }); }
+    catch (e) { return String(value); }
+}
+
+function render(users) {
+    const rows = document.getElementById('userRows');
+    if (!users.length) {
+        rows.innerHTML = '<tr><td colspan="6" class="empty">暂无账号</td></tr>';
+        return;
+    }
+    rows.innerHTML = users.map(u => {
+        const isActive = (u.status || '').toUpperCase() === 'ACTIVE';
+        const nextStatus = isActive ? 'DISABLED' : 'ACTIVE';
+        const roleSelect = '<select onchange="changeRole(' + u.id + ', this.value)"' + (u.self ? ' disabled' : '') + '>'
+            + '<option value="USER"' + (u.role === 'USER' ? ' selected' : '') + '>普通成员</option>'
+            + '<option value="ADMIN"' + (u.role === 'ADMIN' ? ' selected' : '') + '>管理员</option>'
+            + '</select>';
+        return '<tr>'
+            + '<td>' + esc(u.username) + (u.self ? '<span class="tag-self">(我)</span>' : '') + '</td>'
+            + '<td>' + esc(u.nickname) + '</td>'
+            + '<td>' + roleSelect + '</td>'
+            + '<td><span class="badge ' + (isActive ? 'active' : 'disabled') + '">' + (isActive ? '启用' : '停用') + '</span></td>'
+            + '<td>' + esc(fmtTime(u.createdAt)) + '</td>'
+            + '<td><div class="row-actions">'
+            + '<button type="button" class="btn" onclick="openReset(' + u.id + ', \'' + esc(u.username) + '\')">重置口令</button>'
+            + '<button type="button" class="btn' + (isActive ? ' danger' : '') + '"'
+            + (u.self ? ' disabled' : '') + ' onclick="toggleStatus(' + u.id + ', \'' + nextStatus + '\')">'
+            + (isActive ? '停用' : '启用') + '</button>'
+            + '</div></td></tr>';
+    }).join('');
+}
+
+async function load() {
+    try { render(await api('')); }
+    catch (e) { toast(e.message, 'error'); }
+}
+
+async function changeRole(id, role) {
+    try {
+        await api('/' + id, { method: 'PUT', body: JSON.stringify({ role }) });
+        toast('角色已更新');
+    } catch (e) { toast(e.message, 'error'); }
+    await load();
+}
+
+async function toggleStatus(id, status) {
+    try {
+        await api('/' + id, { method: 'PUT', body: JSON.stringify({ status }) });
+        toast('状态已更新');
+    } catch (e) { toast(e.message, 'error'); }
+    await load();
+}
+
+function openReset(id, username) {
+    resettingId = id;
+    document.getElementById('resetTarget').textContent = '为账号 ' + username + ' 设置新口令';
+    document.getElementById('resetPassword').value = '';
+    document.getElementById('resetOverlay').classList.add('show');
+    document.getElementById('resetPassword').focus();
+}
+
+function closeReset() {
+    resettingId = null;
+    document.getElementById('resetOverlay').classList.remove('show');
+}
+
+document.getElementById('createForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const payload = {
+        username: document.getElementById('newUsername').value.trim(),
+        nickname: document.getElementById('newNickname').value.trim(),
+        password: document.getElementById('newPassword').value,
+        role: document.getElementById('newRole').value
+    };
+    try {
+        await api('', { method: 'POST', body: JSON.stringify(payload) });
+        e.target.reset();
+        toast('账号已创建，请把用户名和初始口令告知本人');
+        await load();
+    } catch (err) { toast(err.message, 'error'); }
+});
+
+document.getElementById('refreshBtn').addEventListener('click', load);
+document.getElementById('resetCancel').addEventListener('click', closeReset);
+document.getElementById('resetOverlay').addEventListener('click', (e) => {
+    if (e.target.id === 'resetOverlay') closeReset();
+});
+document.getElementById('resetConfirm').addEventListener('click', async () => {
+    const password = document.getElementById('resetPassword').value;
+    if (password.length < 8) { toast('新口令至少 8 位', 'error'); return; }
+    try {
+        await api('/' + resettingId + '/password', { method: 'PUT', body: JSON.stringify({ password }) });
+        toast('口令已重置');
+        closeReset();
+    } catch (e) { toast(e.message, 'error'); }
+});
+
+load();
+</script>
+</body>
+</html>

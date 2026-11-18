@@ -20,19 +20,25 @@ import vip.mate.agent.platform.workspace.SysWorkspaceRepository;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.Locale;
 
 /**
  * 首次启动初始化：
- * 1. 按环境变量创建/同步管理员（口令用 BCrypt 存 sys_user）
+ * 1. 创建/同步引导管理员（ADMIN，口令 BCrypt 存 sys_user）
  * 2. 创建默认工作空间与 OWNER 成员关系
+ * 3. 按 AUTH_INITIAL_USERS 批量创建账号（只创建不存在的用户名）
  * <p>
- * 不再存在任何内置弱口令：未配置口令时生成一次性随机口令并打印在启动日志中。
+ * 口令策略：显式配置 AUTH_PASSWORD / AUTH_PASSWORD_HASH 时才在每次启动同步；
+ * 未配置且账号已存在时**保留现有口令**，避免重启后其他人无法登录。
+ * 只有全新数据库且未配置口令时才生成一次性随机口令并打印一次。
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 @ConditionalOnProperty(name = "platform.bootstrap.enabled", havingValue = "true", matchIfMissing = true)
 public class PlatformBootstrap implements ApplicationRunner {
+
+    private static final String USERNAME_PATTERN = "[A-Za-z0-9_.-]{2,64}";
 
     private final SysUserRepository userRepository;
     private final SysWorkspaceRepository workspaceRepository;
@@ -45,38 +51,28 @@ public class PlatformBootstrap implements ApplicationRunner {
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
-        String passwordHash = resolvePasswordHash();
+        String configuredHash = resolveConfiguredPasswordHash();
         String username = authProperties.getUsername();
+
         SysUser admin = userRepository.findByUsername(username)
-                .map(existing -> {
-                    existing.setPasswordHash(passwordHash);
-                    existing.setStatus("ACTIVE");
-                    return userRepository.save(existing);
-                })
-                .orElseGet(() -> createAdmin(username, passwordHash));
+                .map(existing -> syncAdmin(existing, configuredHash))
+                .orElseGet(() -> createAdmin(username,
+                        configuredHash != null ? configuredHash
+                                : passwordEncoder.encode(generateTemporaryPassword())));
 
         SysWorkspace workspace = workspaceRepository.findAllByOrderByIdAsc().stream()
                 .findFirst()
                 .orElseGet(() -> createWorkspace(admin));
 
-        if (!memberRepository.existsByWorkspaceIdAndUserId(workspace.getId(), admin.getId())) {
-            memberRepository.save(SysWorkspaceMember.builder()
-                    .workspaceId(workspace.getId())
-                    .userId(admin.getId())
-                    .role("OWNER")
-                    .createdAt(Instant.now())
-                    .build());
-        }
+        ensureMember(workspace.getId(), admin.getId(), "OWNER");
+        int created = createInitialUsers(workspace.getId());
 
-        log.info("[bootstrap] 初始化完成: user={} workspace={}({}) providerCount={}",
-                username, workspace.getName(), workspace.getId(), providerRepository.count());
+        log.info("[bootstrap] 初始化完成: admin={} workspace={}({}) initialUsersCreated={} providerCount={}",
+                username, workspace.getName(), workspace.getId(), created, providerRepository.count());
     }
 
-    /**
-     * 口令来源优先级：AUTH_PASSWORD_HASH（BCrypt）> AUTH_PASSWORD（明文）> 一次性随机口令。
-     * 生产环境应在 .env 中固定其中一个；随机口令每次重启都会变化。
-     */
-    private String resolvePasswordHash() {
+    /** 只在显式配置口令时覆盖；未配置时返回 null，表示保留库中已有哈希。 */
+    private String resolveConfiguredPasswordHash() {
         String hash = authProperties.getPasswordHash();
         if (hash != null && !hash.isBlank()) {
             String trimmed = hash.trim();
@@ -90,16 +86,78 @@ public class PlatformBootstrap implements ApplicationRunner {
         if (raw != null && !raw.isBlank()) {
             return passwordEncoder.encode(raw);
         }
+        return null;
+    }
+
+    private SysUser syncAdmin(SysUser existing, String configuredHash) {
+        if (configuredHash != null) {
+            existing.setPasswordHash(configuredHash);
+        }
+        existing.setStatus("ACTIVE");
+        existing.setRole("ADMIN");
+        return userRepository.save(existing);
+    }
+
+    /** 全新数据库且未配置口令时，生成一次性初始口令（写入 sys_user 后不再变化）。 */
+    private String generateTemporaryPassword() {
         byte[] bytes = new byte[24];
         new SecureRandom().nextBytes(bytes);
         String generated = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-        log.warn("\n==================== 管理员临时口令 ====================\n"
-                        + "  未配置 AUTH_PASSWORD / AUTH_PASSWORD_HASH，已生成一次性口令：\n"
+        log.warn("\n==================== 管理员初始口令 ====================\n"
                         + "  账号: {}\n  口令: {}\n"
-                        + "  请设置环境变量固定口令；应用重启后该口令会重新生成。\n"
+                        + "  该口令仅显示这一次，已写入 sys_user，重启不会变化。\n"
+                        + "  请到「用户管理」页面修改，或设置 AUTH_PASSWORD 固定口令。\n"
                         + "=====================================================",
                 authProperties.getUsername(), generated);
-        return passwordEncoder.encode(generated);
+        return generated;
+    }
+
+    /** 解析 AUTH_INITIAL_USERS：user:password[:role]，多个账号用逗号分隔。 */
+    private int createInitialUsers(Long workspaceId) {
+        String raw = authProperties.getInitialUsers();
+        if (raw == null || raw.isBlank()) {
+            return 0;
+        }
+        int created = 0;
+        for (String entry : raw.split(",")) {
+            String item = entry.trim();
+            if (item.isEmpty()) {
+                continue;
+            }
+            String[] parts = item.split(":", 3);
+            if (parts.length < 2 || !parts[0].trim().matches(USERNAME_PATTERN) || parts[1].length() < 8) {
+                log.warn("[bootstrap] 跳过无效的 AUTH_INITIAL_USERS 条目（需 user:password[:role]，口令至少 8 位）");
+                continue;
+            }
+            String name = parts[0].trim();
+            if (userRepository.findByUsername(name).isPresent()) {
+                continue;
+            }
+            String role = parts.length == 3 && "ADMIN".equalsIgnoreCase(parts[2].trim()) ? "ADMIN" : "USER";
+            SysUser user = userRepository.save(SysUser.builder()
+                    .username(name)
+                    .passwordHash(passwordEncoder.encode(parts[1]))
+                    .nickname(name)
+                    .status("ACTIVE")
+                    .role(role)
+                    .createdAt(Instant.now())
+                    .build());
+            ensureMember(workspaceId, user.getId(), "MEMBER");
+            created++;
+            log.info("[bootstrap] 按 AUTH_INITIAL_USERS 创建账号: {} role={}", name, role.toUpperCase(Locale.ROOT));
+        }
+        return created;
+    }
+
+    private void ensureMember(Long workspaceId, Long userId, String role) {
+        if (!memberRepository.existsByWorkspaceIdAndUserId(workspaceId, userId)) {
+            memberRepository.save(SysWorkspaceMember.builder()
+                    .workspaceId(workspaceId)
+                    .userId(userId)
+                    .role(role)
+                    .createdAt(Instant.now())
+                    .build());
+        }
     }
 
     private SysUser createAdmin(String username, String passwordHash) {
@@ -109,6 +167,7 @@ public class PlatformBootstrap implements ApplicationRunner {
                 .passwordHash(passwordHash)
                 .nickname("管理员")
                 .status("ACTIVE")
+                .role("ADMIN")
                 .createdAt(Instant.now())
                 .build());
     }

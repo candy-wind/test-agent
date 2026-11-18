@@ -59,7 +59,8 @@ public class AuthController {
             response.setStatus(401);
             return Map.of("success", false, "message", "未登录或会话已过期");
         }
-        return Map.of("success", true, "username", session.username());
+        return Map.of("success", true, "username", session.username(),
+                "role", session.role() == null ? "USER" : session.role());
     }
 
     @PostMapping("/login")
@@ -92,14 +93,15 @@ public class AuthController {
         }
 
         rateLimiter.reset(key);
+        String role = roleOf(user);
         Long workspaceId = resolveWorkspaceId(user.getId());
         long ttl = Math.max(1, properties.getTokenTtlHours());
-        String token = sessionRegistry.issue(account, user.getId(), workspaceId, ttl);
+        String token = sessionRegistry.issue(account, user.getId(), workspaceId, role, ttl);
 
         response.addHeader(HttpHeaders.SET_COOKIE, cookie(token, ttl * 3600).toString());
         auditLogService.record("LOGIN_SUCCESS", "AUTH", account, "登录成功");
-        log.info("[auth] 用户登录成功: username={}", account);
-        return Map.of("success", true, "username", account);
+        log.info("[auth] 用户登录成功: username={} role={}", account, role);
+        return Map.of("success", true, "username", account, "role", role);
     }
 
     @PostMapping("/logout")
@@ -112,6 +114,12 @@ public class AuthController {
             auditLogService.record("LOGOUT", "AUTH", session.username(), "退出登录");
         }
         return Map.of("success", true);
+    }
+
+    /** 老数据可能没有 role 列的值，统一按普通成员处理。 */
+    public static String roleOf(SysUser user) {
+        String role = user.getRole();
+        return role == null || role.isBlank() ? "USER" : role.trim().toUpperCase(Locale.ROOT);
     }
 
     /** 从 Cookie 或 Authorization 头中提取 token（供 AuthFilter 复用） */

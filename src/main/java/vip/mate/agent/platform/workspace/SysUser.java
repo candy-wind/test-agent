@@ -35,5 +35,8 @@ public class SysUser {
 
     private String status;
 
+    /** 全局角色：ADMIN 可管理账号，USER 为普通成员（V3 迁移新增列） */
+    private String role;
+
     private Instant createdAt;
 }

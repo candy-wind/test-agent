@@ -368,6 +368,10 @@
                 <span class="icon">⚙️</span>
                 <span class="label">模型配置</span>
             </button>
+            <button type="button" class="nav-item" data-target="users" id="usersNav" style="display:none">
+                <span class="icon">◉</span>
+                <span class="label">用户管理</span>
+            </button>
         </div>
 
         <div class="sidebar-footer">
@@ -435,7 +439,8 @@ const PAGES = {
     chat: { title: 'AI 对话', url: '/chat.html' },
     boxoffice: { title: '票房数据', url: '/boxoffice.html' },
     kb: { title: '知识库', url: '/kb.html' },
-    platform: { title: '模型配置', url: '/platform.html' }
+    platform: { title: '模型配置', url: '/platform.html' },
+    users: { title: '用户管理', url: '/users.html' }
 };
 
 function switchTo(target) {
@@ -485,6 +490,13 @@ async function loadUser() {
         const name = data.username || data.user || 'admin';
         document.getElementById('userName').textContent = name;
         document.getElementById('userAvatar').textContent = name.charAt(0).toUpperCase();
+        const isAdmin = (data.role || '').toUpperCase() === 'ADMIN';
+        document.getElementById('usersNav').style.display = isAdmin ? '' : 'none';
+        document.querySelector('.user-box .urole').textContent = isAdmin ? '管理员' : '普通成员';
+        // 非管理员不能停在用户管理页
+        if (!isAdmin && localStorage.getItem('app_active_nav') === 'users') {
+            switchTo('chat');
+        }
     } catch (e) {
         // 静默失败 - 不阻塞页面
     }

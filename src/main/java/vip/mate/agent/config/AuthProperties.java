@@ -30,4 +30,10 @@ public class AuthProperties {
     private int maxFailedAttempts = 5;
 
     private int lockoutMinutes = 15;
+
+    /**
+     * 首次启动可批量创建的账号，格式：user:password[:role]，多个用英文逗号分隔。
+     * 只创建不存在的用户名，不覆盖已有账号的口令；口令中不要包含 : 和 ,。
+     */
+    private String initialUsers = "";
 }

@@ -220,3 +220,4 @@ printf '  配置文件：%s/.env（请备份，内含数据库密码与 APP_SECR
 printf '  日志文件：%s/%s/app.log\n' "$LOG_ROOT" "$LOG_SERVICE_NAME"
 printf '  更新代码：cd %s && ./deploy.sh\n' "$CODE_DIR"
 printf '  查看日志：docker compose -f %s logs -f app\n' "$COMPOSE_FILE"
+printf '  多人使用：管理员登录后可在左侧「用户管理」创建独立账号\n'
