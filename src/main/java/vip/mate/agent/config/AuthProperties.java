@@ -5,9 +5,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 /**
- * 登录与安全相关配置。口令不再写在 application.yml 里：
+ * 登录与安全相关配置。口令不写在 application.yml 里：
  * 优先 AUTH_PASSWORD_HASH（BCrypt），其次 AUTH_PASSWORD（明文，启动时哈希），
- * 两者都没有时生成一次性随机口令并打印在启动日志中。
+ * 两者都没有时使用固定默认口令 123456（不生成随机口令）。
  */
 @Data
 @Component

@@ -170,7 +170,7 @@ $env:DB_PASSWORD = "你的密码"
 | `DB_URL` | 数据库连接（`jdbc:postgresql://localhost:5432/test_agent`） |
 | `DB_USERNAME` / `DB_PASSWORD` | 数据库账号密码（`postgres` / `postgres`） |
 | `APP_SECRET_KEY` | 模型 API Key 的加密主密钥（**未设置会拒绝启动**；本地可设 `PLATFORM_ALLOW_DEV_SECRET=true` 降级） |
-| `AUTH_USERNAME` / `AUTH_PASSWORD` | 登录账号与明文口令（默认账号 `admin`，无内置口令） |
+| `AUTH_USERNAME` / `AUTH_PASSWORD` | 登录账号与明文口令（默认账号 `admin`，未配置口令时新库用默认口令 `123456`） |
 | `AUTH_PASSWORD_HASH` | 直接提供 BCrypt 哈希，优先于 `AUTH_PASSWORD` |
 | `AUTH_INITIAL_USERS` | 可选：首次启动批量建号，格式 `用户名:口令[:角色]`，逗号分隔；不覆盖已有口令 |
 | `AUTH_COOKIE_SECURE` | HTTPS 部署设为 `true`；纯 HTTP 必须保持 `false` |
@@ -211,21 +211,20 @@ $env:DB_PASSWORD = "你的密码"
 | 模型配置 | <http://localhost:8080/platform.html> |
 | 登录页 | <http://localhost:8080/login.html> |
 
-默认登录账号 `AUTH_USERNAME`（默认 `admin`）。**不再提供内置弱口令**，口令来源如下：
+默认登录账号 `AUTH_USERNAME`（默认 `admin`），口令来源如下：
 
 | 方式 | 说明 |
 | --- | --- |
 | `AUTH_PASSWORD_HASH` | BCrypt 哈希，优先级最高，适合生产 |
 | `AUTH_PASSWORD` | 明文口令，应用启动时自动做 BCrypt 哈希后写入 `sys_user`；每次启动都会同步该管理员账号 |
-| 都不设置 | **全新数据库**：启动日志打印一次初始口令并写入 `sys_user`，之后重启不再变化；**已有账号**：完全保留库中现有口令，不会被覆盖 |
+| 都不设置 | **全新数据库**：使用固定默认口令 `123456` 创建管理员；**已有账号**：完全保留库中现有口令，不会被覆盖 |
 
 > 也就是说，管理员在「用户管理」页面改过的口令，只要环境变量没显式配置，重启后就不会失效。
 
-使用 `start.ps1` 启动最省事：脚本会在 `%LOCALAPPDATA%\test-agent\` 下生成并持久化
-`dev-secret.txt`（加密主密钥）和 `dev-password.txt`（登录口令），启动时把账号口令打印在控制台。
-同一份密钥会一直复用，避免重启后数据库里已加密的 API Key 无法解密。
+使用 `start.ps1` 启动时，脚本会在 `%LOCALAPPDATA%\test-agent\` 下生成并持久化
+`dev-secret.txt`（加密主密钥），启动时把登录账号和口令打印在控制台。
 
-> 生产部署请用 [deploy-aliyun.md](deploy-aliyun.md) 的一键脚本，它会把随机口令写入 `.env` 并提示备份。
+> 生产部署请用 [deploy-aliyun.md](deploy-aliyun.md) 的一键脚本。
 
 ### 多人使用：给每个人发独立账号
 
@@ -369,8 +368,7 @@ $env:PLATFORM_ALLOW_DEV_SECRET = "true"
 
 ### 忘记登录口令
 
-用 `start.ps1` 启动的直接看控制台输出，或读取 `%LOCALAPPDATA%\test-agent\dev-password.txt`；
-全新数据库且未设置环境变量时，初始口令会在应用启动日志中以醒目 WARN 打印一次，之后重启不会再变。
+未修改过口令时默认是 `admin / 123456`；
 管理员可在「用户管理」页面重置任意账号的口令；若连管理员口令也忘记，设置 `AUTH_PASSWORD` 后重启会覆盖该管理员账号的口令。
 连续 5 次登录失败会锁定 15 分钟。
 

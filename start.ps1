@@ -318,21 +318,11 @@ if (-not $env:APP_SECRET_KEY -or -not $env:AUTH_PASSWORD) {
     }
 
     if (-not $env:AUTH_PASSWORD -and -not $env:AUTH_PASSWORD_HASH) {
-        $passwordFile = Join-Path $devDir "dev-password.txt"
-        if (Test-Path $passwordFile) {
-            $env:AUTH_PASSWORD = (Get-Content -Path $passwordFile -Raw).Trim()
-        } else {
-            $bytes = New-Object byte[] 18
-            $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
-            $rng.GetBytes($bytes); $rng.Dispose()
-            $env:AUTH_PASSWORD = [Convert]::ToBase64String($bytes)
-            Set-Content -Path $passwordFile -Value $env:AUTH_PASSWORD -Encoding UTF8
-        }
+        # 未配置口令时使用应用内置默认口令 123456（仅首次创建账号生效）
         $loginUser = if ($env:AUTH_USERNAME) { $env:AUTH_USERNAME } else { "admin" }
         Write-Host ""
         Write-Host "  本地登录账号: $loginUser" -ForegroundColor Yellow
-        Write-Host "  本地登录口令: $($env:AUTH_PASSWORD)" -ForegroundColor Yellow
-        Write-Host "  （保存在 $passwordFile，可通过环境变量覆盖）" -ForegroundColor Yellow
+        Write-Host "  本地登录口令: 123456（默认口令，可通过环境变量 AUTH_PASSWORD 覆盖）" -ForegroundColor Yellow
         Write-Host ""
     }
 }

@@ -140,7 +140,7 @@ DEPLOY_DIR=/opt/test-agent bash deploy.sh
 
 - 访问 `http://<公网IP>:8080`
 - 应用日志：`docker compose -f docker-compose.prod.yml logs -f app`，或文件日志 `tail -f /mnt/logs/test-agent/app.log`
-- 登录账号 `AUTH_USERNAME`（默认 `admin`），口令是首次部署生成的 `AUTH_PASSWORD`，见 `.env`；部署完成的日志也会打印一次。项目不再包含任何内置弱口令。
+- 登录账号 `AUTH_USERNAME`（默认 `admin`），未在 `.env` 配置口令时使用固定默认口令 `123456`（仅首次创建账号生效）；已配置则以 `.env` 中的 `AUTH_PASSWORD` 为准。**部署到公网后请尽快修改默认口令**。
 
 ### 给团队每人发独立账号
 
@@ -328,8 +328,9 @@ docker build --build-arg MAVEN_MIRROR_URL=https://repo.maven.apache.org/maven2 -
 
 **忘记管理员口令 / 想改口令**
 
+未修改过口令时默认是 `admin / 123456`。要改成固定口令，直接编辑 `.env` 中的 `AUTH_PASSWORD`：
+
 ```bash
-grep '^AUTH_PASSWORD' ~/test-agent/.env
 # 修改后重建应用容器使新口令生效（sys_user 中的 BCrypt 哈希会在启动时同步）
 cd ~/test-agent && docker compose -f docker-compose.prod.yml up -d --force-recreate app
 ```

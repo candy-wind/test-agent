@@ -46,7 +46,7 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:?请在 .env 中设置 DB_PASSWORD}
       APP_SECRET_KEY: ${APP_SECRET_KEY:?请在 .env 中设置 APP_SECRET_KEY}
       AUTH_USERNAME: ${AUTH_USERNAME:-admin}
-      # 二选一：明文口令或 BCrypt 哈希；都为空时应用会生成一次性随机口令并打印到日志
+      # 二选一：明文口令或 BCrypt 哈希；都为空时使用固定默认口令 123456（仅首次创建账号生效）
       AUTH_PASSWORD: ${AUTH_PASSWORD:-}
       AUTH_PASSWORD_HASH: ${AUTH_PASSWORD_HASH:-}
       AUTH_INITIAL_USERS: ${AUTH_INITIAL_USERS:-}

@@ -2,12 +2,14 @@ package vip.mate.agent.platform.bootstrap;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.boot.ApplicationArguments;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import vip.mate.agent.config.AuthProperties;
 import vip.mate.agent.platform.model.AiProviderRepository;
 import vip.mate.agent.platform.workspace.SysUser;
@@ -79,5 +81,31 @@ class PlatformBootstrapTest {
         bootstrap.run(mock(ApplicationArguments.class));
 
         assertThat(existing.getPasswordHash()).isNotEqualTo("OLD").startsWith("$2");
+    }
+
+    @Test
+    void createsAdminWithDefaultPasswordOnFreshDatabase() {
+        when(authProperties.getUsername()).thenReturn("admin");
+        when(authProperties.getPassword()).thenReturn("");
+        when(authProperties.getPasswordHash()).thenReturn("");
+        when(authProperties.getInitialUsers()).thenReturn("");
+
+        ArgumentCaptor<SysUser> captor = ArgumentCaptor.forClass(SysUser.class);
+        when(userRepository.findByUsername("admin")).thenReturn(Optional.empty());
+        when(userRepository.save(captor.capture())).thenAnswer(invocation -> {
+            SysUser saved = invocation.getArgument(0);
+            saved.setId(1L);
+            return saved;
+        });
+        when(workspaceRepository.findAllByOrderByIdAsc()).thenReturn(List.of(
+                SysWorkspace.builder().id(7L).name("默认空间").build()));
+        when(memberRepository.existsByWorkspaceIdAndUserId(7L, 1L)).thenReturn(true);
+        when(providerRepository.count()).thenReturn(0L);
+
+        bootstrap.run(mock(ApplicationArguments.class));
+
+        BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
+        assertThat(encoder.matches("123456", captor.getValue().getPasswordHash())).isTrue();
+        assertThat(captor.getValue().getRole()).isEqualTo("ADMIN");
     }
 }
